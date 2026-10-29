@@ -1,0 +1,952 @@
+﻿ATTENDANCE MONITORING API DOCUMENTATION
+=======================================
+
+This document is for mobile app development and admin dashboard integration.
+The backend is a FastAPI service for face-based attendance, GPS tracking,
+auto-checkout, and organization-based role access.
+
+
+BASE URL
+--------
+
+Use the server URL entered by the mobile app:
+
+  http://<host>:<port>
+
+Example during local network testing:
+
+  http://192.168.1.20:8000
+
+Example on the same machine:
+
+  http://127.0.0.1:8000
+
+All endpoints below are relative to this base URL.
+
+
+ENVIRONMENT VARIABLES
+---------------------
+
+Create a .env file in the backend project root.
+
+Required / recommended values:
+
+  SESSION_SECRET=change-this-secret
+  SUPERADMIN_EMAIL=superadmin@example.com
+  SUPERADMIN_PASSWORD=superadmin123
+  MONGO_URI=mongodb://localhost:27017/
+  DB_NAME=attendance_db
+  ONNX_PATH=w600k_r50.onnx
+  SIMILARITY_THRESHOLD=0.60
+  MAX_FILE_BYTES=10485760
+  DEFAULT_TRACKING_TIMEOUT_HOURS=4
+  DEFAULT_TRACKING_INTERVAL_MINUTES=30
+  AUTO_CHECKOUT_POLL_SECONDS=60
+
+Notes:
+
+  SUPERADMIN_EMAIL and SUPERADMIN_PASSWORD are used for the superadmin login.
+  DEFAULT_TRACKING_TIMEOUT_HOURS controls the default auto-checkout duration.
+  DEFAULT_TRACKING_INTERVAL_MINUTES controls the mobile GPS upload interval.
+  Only superadmin should edit organization tracking settings.
+  Org admin can view tracking settings but should not edit the GPS interval.
+
+
+MOBILE APP FLOW
+---------------
+
+1. Ask the user for server URL, or configure it in the app.
+2. Call GET /health to verify backend availability.
+3. Call POST /login with username and password.
+4. Read user_type, org_id, employee_id, is_checked_in, next_attendance_type,
+   and tracking_settings from the login response.
+5. For check-in or check-out, capture a live face image.
+6. Call POST /authenticate with live_image and org_id.
+7. If authenticated is true, call POST /attendance with the next action.
+8. After check_in, start location tracking:
+   - send one immediate POST /location-track
+   - repeat every tracking_interval_minutes
+9. After manual check_out, stop location tracking.
+10. If expected_checkout_at is reached and no manual checkout happened, backend
+    creates an automatic checkout.
+11. Mobile should refresh state by calling POST /login again or reading
+    attendance records after expected_checkout_at.
+
+
+TIMESTAMP FORMAT
+----------------
+
+Use ISO-8601 strings when sending timestamps:
+
+  2026-07-05T10:30:00+05:30
+
+If timestamp is omitted, the backend stores the server UTC time.
+
+
+1. HEALTH CHECK
+---------------
+
+Endpoint:
+
+  GET /health
+
+Purpose:
+
+  Check whether the server is reachable.
+
+Success response:
+
+  {
+    "status": "ok"
+  }
+
+
+2. MOBILE LOGIN
+---------------
+
+Endpoint:
+
+  POST /login
+
+Headers:
+
+  Content-Type: application/json
+
+Purpose:
+
+  Stateless login for mobile apps. This does not require browser cookies.
+
+Username rules:
+
+  Employee users can login with employee_id or email.
+  Org admins can login with email.
+  Superadmin should use web login APIs, not this mobile endpoint.
+
+Request:
+
+  {
+    "username": "EMP001",
+    "password": "password123"
+  }
+
+Success response when employee is checked out:
+
+  {
+    "success": true,
+    "user_type": "user",
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "tracking_settings": {
+      "auto_checkout_enabled": true,
+      "tracking_timeout_hours": 4.0,
+      "tracking_interval_minutes": 30
+    },
+    "is_checked_in": false,
+    "attendance_state": "checked_out",
+    "next_attendance_type": "check_in",
+    "last_attendance_type": "check_out",
+    "last_attendance_time": "2026-07-05T13:15:00+00:00",
+    "last_checkout_source": "manual"
+  }
+
+Success response when employee is checked in:
+
+  {
+    "success": true,
+    "user_type": "user",
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "tracking_settings": {
+      "auto_checkout_enabled": true,
+      "tracking_timeout_hours": 4.0,
+      "tracking_interval_minutes": 30
+    },
+    "is_checked_in": true,
+    "attendance_state": "checked_in",
+    "next_attendance_type": "check_out",
+    "active_session_id": "session-id-value",
+    "check_in_time": "2026-07-05T09:15:00+00:00",
+    "expected_checkout_at": "2026-07-05T13:15:00+00:00"
+  }
+
+Success response for org admin:
+
+  {
+    "success": true,
+    "user_type": "admin",
+    "employee_id": "admin-id-or-email",
+    "employee_name": "Org Admin",
+    "org_id": "org-id-value",
+    "tracking_settings": {
+      "auto_checkout_enabled": true,
+      "tracking_timeout_hours": 4.0,
+      "tracking_interval_minutes": 30
+    },
+    "is_checked_in": false,
+    "attendance_state": "checked_out",
+    "next_attendance_type": "check_in"
+  }
+
+Failure response:
+
+  {
+    "success": false,
+    "message": "Invalid credentials"
+  }
+
+Mobile usage:
+
+  Use next_attendance_type to decide whether the button says Check In or
+  Check Out. Use tracking_interval_minutes for background location upload
+  timing. Use expected_checkout_at to know when the backend may auto-checkout.
+
+
+3. FACE AUTHENTICATION
+----------------------
+
+Endpoint:
+
+  POST /authenticate
+
+Headers:
+
+  Content-Type: multipart/form-data
+
+Purpose:
+
+  Compare the live camera image with enrolled face profiles in the organization.
+
+Form fields:
+
+  live_image  Required image file from camera
+  org_id      Required/recommended organization id from login response
+
+Success response:
+
+  {
+    "authenticated": true,
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "similarity_score": 0.7821,
+    "faces_detected": 1
+  }
+
+Failure response:
+
+  {
+    "authenticated": false,
+    "similarity_score": 0.4212,
+    "faces_detected": 1,
+    "error": "Face does not match any enrolled employee"
+  }
+
+Other possible errors:
+
+  Empty image
+  Failed to decode image
+  No face detected
+  Organization is inactive
+  File too large (max 10 MB)
+
+Mobile usage:
+
+  Continue to /attendance only when authenticated is true.
+  Use the employee_id and org_id returned here or from login.
+
+
+4. MARK ATTENDANCE
+------------------
+
+Endpoint:
+
+  POST /attendance
+
+Headers:
+
+  Content-Type: application/json
+
+Purpose:
+
+  Save check-in or check-out. On check-in the backend opens an attendance
+  session. On check-out the backend closes the active session.
+
+Check-in request:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "attendance_type": "check_in",
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "timestamp": "2026-07-05T09:15:00+05:30"
+  }
+
+Check-in response:
+
+  {
+    "success": true,
+    "message": "Attendance marked successfully",
+    "attendance_type": "check_in",
+    "is_checked_in": true,
+    "attendance_state": "checked_in",
+    "next_attendance_type": "check_out",
+    "session_id": "session-id-value",
+    "expected_checkout_at": "2026-07-05T07:45:00+00:00",
+    "tracking_interval_minutes": 30,
+    "tracking_settings": {
+      "auto_checkout_enabled": true,
+      "tracking_timeout_hours": 4.0,
+      "tracking_interval_minutes": 30
+    }
+  }
+
+Check-out request:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "attendance_type": "check_out",
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "timestamp": "2026-07-05T13:12:00+05:30",
+    "checkout_source": "manual",
+    "remark": "Manual checkout from mobile app"
+  }
+
+Check-out response:
+
+  {
+    "success": true,
+    "message": "Checkout marked successfully",
+    "attendance_type": "check_out",
+    "is_checked_in": false,
+    "attendance_state": "checked_out",
+    "next_attendance_type": "check_in",
+    "session_id": "session-id-value",
+    "expected_checkout_at": "",
+    "tracking_interval_minutes": 30,
+    "tracking_settings": {
+      "auto_checkout_enabled": true,
+      "tracking_timeout_hours": 4.0,
+      "tracking_interval_minutes": 30
+    }
+  }
+
+Validation errors:
+
+  {
+    "success": false,
+    "error": "employee_id is required"
+  }
+
+  {
+    "success": false,
+    "error": "attendance_type must be check_in or check_out"
+  }
+
+  {
+    "success": false,
+    "error": "org_id is required"
+  }
+
+Mobile usage:
+
+  After check_in succeeds, start background GPS tracking.
+  After check_out succeeds, stop background GPS tracking.
+  Save session_id locally if needed for debugging, but the backend finds the
+  active session using employee_id and org_id.
+
+
+5. LOCATION TRACKING
+--------------------
+
+Endpoint:
+
+  POST /location-track
+
+Headers:
+
+  Content-Type: application/json
+
+Purpose:
+
+  Store periodic GPS points while the user is checked in.
+
+Default interval:
+
+  30 minutes
+
+The mobile app must use tracking_interval_minutes from /login or /attendance.
+Currently org admin should not edit this interval. Superadmin configures it per
+organization.
+
+Normal GPS request:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "latitude": 12.9716,
+    "longitude": 77.5946,
+    "tracking_status": "ok",
+    "timestamp": "2026-07-05T09:45:00+05:30"
+  }
+
+GPS failure request when app can contact server:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "tracking_status": "failed",
+    "remark": "GPS unavailable or permission denied",
+    "timestamp": "2026-07-05T10:15:00+05:30"
+  }
+
+Network recovery sync request:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "tracking_status": "failed",
+    "remark": "Network unavailable at scheduled tracking time; synced later",
+    "timestamp": "2026-07-05T10:45:00+05:30"
+  }
+
+Success response:
+
+  {
+    "success": true,
+    "message": "Location saved"
+  }
+
+Validation errors:
+
+  {
+    "success": false,
+    "error": "employee_id is required"
+  }
+
+  {
+    "success": false,
+    "error": "org_id is required"
+  }
+
+  {
+    "success": false,
+    "error": "latitude and longitude are required when tracking_status is ok"
+  }
+
+  {
+    "success": false,
+    "error": "remark is required when tracking_status is not ok"
+  }
+
+Mobile usage:
+
+  If GPS is available, send tracking_status=ok with latitude and longitude.
+  If GPS fails but internet works, send tracking_status=failed with a remark.
+  If internet is unavailable, store the event locally on the phone and sync it
+  later with the original timestamp.
+
+
+6. AUTO-CHECKOUT BEHAVIOR
+-------------------------
+
+Default behavior:
+
+  The backend auto-checks out active sessions after 4 hours by default.
+
+How it works:
+
+  1. Mobile sends POST /attendance with attendance_type=check_in.
+  2. Backend creates an active record in attendance_sessions.
+  3. Backend calculates expected_checkout_at:
+
+       check_in_time + tracking_timeout_hours
+
+  4. A background task runs every AUTO_CHECKOUT_POLL_SECONDS.
+  5. When expected_checkout_at is reached and the session is still active,
+     backend inserts a check_out attendance record.
+  6. The session is marked closed.
+
+Auto-checkout attendance record shape:
+
+  {
+    "employee_id": "EMP001",
+    "employee_name": "Ravi Kumar",
+    "org_id": "org-id-value",
+    "attendance_type": "check_out",
+    "timestamp": "2026-07-05T13:15:00+00:00",
+    "checkout_source": "auto",
+    "remark": "Auto checkout after 4.0 hours without manual checkout",
+    "session_id": "session-id-value"
+  }
+
+Mobile responsibility:
+
+  The mobile app does not need to perform auto-checkout itself.
+  It should stop tracking when manual checkout succeeds.
+  If the app remains open after expected_checkout_at, it should refresh login
+  state. If is_checked_in becomes false, stop tracking.
+
+
+7. GET EMPLOYEE ATTENDANCE HISTORY
+----------------------------------
+
+Endpoint:
+
+  GET /attendance-record/{employee_id}?org_id=<org_id>
+
+Purpose:
+
+  Get attendance history for one employee.
+
+Example:
+
+  GET /attendance-record/EMP001?org_id=org-id-value
+
+Success response:
+
+  [
+    {
+      "employee_id": "EMP001",
+      "employee_name": "Ravi Kumar",
+      "org_id": "org-id-value",
+      "attendance_type": "check_out",
+      "latitude": 12.9716,
+      "longitude": 77.5946,
+      "timestamp": "2026-07-05T13:12:00+05:30",
+      "checkout_source": "manual",
+      "remark": "Manual checkout from mobile app",
+      "session_id": "session-id-value"
+    }
+  ]
+
+
+8. ENROLL FACE
+--------------
+
+Endpoint:
+
+  POST /enroll-face
+
+Headers:
+
+  Content-Type: multipart/form-data
+
+Purpose:
+
+  Enroll or update an employee face profile.
+
+Form fields:
+
+  employee_id    Required
+  employee_name  Required
+  org_id         Required
+  file           Required image file
+
+Success response:
+
+  {
+    "success": true,
+    "message": "Employee enrolled successfully",
+    "employee_id": "EMP001",
+    "org_id": "org-id-value"
+  }
+
+Notes:
+
+  This stores face embedding data used by /authenticate.
+  This is separate from creating an employee login user.
+
+
+9. LIST ENROLLED FACE PROFILES
+------------------------------
+
+Endpoint:
+
+  GET /list?org_id=<org_id>
+
+Purpose:
+
+  List enrolled face profiles. This does not list all application users.
+
+Success response:
+
+  [
+    {
+      "employee_id": "EMP001",
+      "employee_name": "Ravi Kumar",
+      "org_id": "org-id-value"
+    }
+  ]
+
+
+10. EDIT OR DELETE FACE PROFILE
+-------------------------------
+
+Edit endpoint:
+
+  POST /edit/{employee_id}
+
+Form fields:
+
+  employee_name  Required
+  org_id         Optional but recommended
+
+Response:
+
+  {
+    "success": true
+  }
+
+Delete endpoint:
+
+  DELETE /delete/{employee_id}?org_id=<org_id>
+
+Response:
+
+  {
+    "success": true
+  }
+
+
+11. WEB DASHBOARD LOGIN
+-----------------------
+
+Endpoint:
+
+  POST /api/auth/login
+
+Headers:
+
+  Content-Type: application/json
+
+Purpose:
+
+  Login for the React web dashboard. This sets a session cookie and is used for
+  superadmin, org admin, and user web panels.
+
+Request:
+
+  {
+    "username": "admin@example.com",
+    "password": "password123"
+  }
+
+Optional role request:
+
+  {
+    "username": "admin@example.com",
+    "password": "password123",
+    "role": "auto"
+  }
+
+Allowed role values:
+
+  auto
+  superadmin
+  org_admin
+  user
+
+Success response:
+
+  {
+    "authenticated": true,
+    "role": "org_admin",
+    "org_id": "org-id-value",
+    "admin_email": "admin@example.com",
+    "admin_name": "Org Admin"
+  }
+
+Mobile recommendation:
+
+  Use POST /login for normal mobile attendance because it is stateless.
+  Use /api/auth/login only if building a mobile version of the admin dashboard
+  that supports cookies.
+
+
+12. ORG ADMIN ATTENDANCE TABLE AND MAP
+--------------------------------------
+
+Endpoint:
+
+  GET /api/org-admin/attendance
+
+Authentication:
+
+  Requires org admin session cookie from POST /api/auth/login.
+
+Query parameters:
+
+  employee_id  Optional employee filter
+  date         Optional exact date in YYYY-MM-DD
+  page         Optional, default 1
+  page_size    Optional, default 20
+
+Recommended mobile/admin UI pattern:
+
+  First show the grouped table by employee and date.
+  Each row shows check-in count, checkout count, GPS count, failed GPS count,
+  first time, and last time.
+  When the admin taps a row, open detail/map view for that employee and date.
+  Use only date filter for this screen, not from-date/to-date.
+
+Example:
+
+  GET /api/org-admin/attendance?employee_id=EMP001&date=2026-07-05&page=1&page_size=20
+
+Success response:
+
+  {
+    "groups": [
+      {
+        "employee_id": "EMP001",
+        "employee_name": "Ravi Kumar",
+        "date": "2026-07-05",
+        "check_in_count": 1,
+        "check_out_count": 1,
+        "attendance_count": 2,
+        "gps_count": 8,
+        "failed_gps_count": 1,
+        "first_time": "2026-07-05T09:15:00+05:30",
+        "last_time": "2026-07-05T13:12:00+05:30",
+        "first_time_display": "05-07-2026 09:15:00 AM",
+        "last_time_display": "05-07-2026 01:12:00 PM"
+      }
+    ],
+    "groups_pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total": 1,
+      "pages": 1,
+      "has_next": false,
+      "has_prev": false
+    },
+    "rows": [
+      {
+        "employee_id": "EMP001",
+        "employee_name": "Ravi Kumar",
+        "attendance_type": "check_in",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "checkout_source": "manual",
+        "remark": "",
+        "session_id": "session-id-value",
+        "timestamp": "2026-07-05T09:15:00+05:30",
+        "display_timestamp": "05-07-2026 09:15:00 AM"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total": 2,
+      "pages": 1,
+      "has_next": false,
+      "has_prev": false
+    },
+    "map_points": [
+      {
+        "employee_id": "EMP001",
+        "employee_name": "Ravi Kumar",
+        "type": "location_track",
+        "latitude": 12.9716,
+        "longitude": 77.5946,
+        "tracking_status": "ok",
+        "remark": "",
+        "timestamp": "2026-07-05T09:45:00+05:30",
+        "display_timestamp": "05-07-2026 09:45:00 AM"
+      }
+    ]
+  }
+
+
+13. USER DASHBOARD DATA
+-----------------------
+
+Endpoint:
+
+  GET /api/user/dashboard
+
+Authentication:
+
+  Requires user session cookie from POST /api/auth/login.
+
+Query parameters:
+
+  date       Optional exact date in YYYY-MM-DD
+  month      Optional month in YYYY-MM
+  page       Optional, default 1
+  page_size  Optional, default 20
+
+Purpose:
+
+  Used by web user panel to show attendance history and map points.
+
+Success response:
+
+  {
+    "profile": {
+      "employee_id": "EMP001",
+      "employee_name": "Ravi Kumar",
+      "email": "ravi@example.com"
+    },
+    "summary": {
+      "attendance_records": 2,
+      "check_ins": 1,
+      "check_outs": 1,
+      "map_points": 8
+    },
+    "rows": [],
+    "pagination": {
+      "page": 1,
+      "page_size": 20,
+      "total": 0,
+      "pages": 1,
+      "has_next": false,
+      "has_prev": false
+    },
+    "map_points": []
+  }
+
+
+14. SUPERADMIN ORGANIZATION SETTINGS
+------------------------------------
+
+Endpoint:
+
+  PUT /api/superadmin/orgs/{org_id}
+
+Authentication:
+
+  Requires superadmin session cookie from POST /api/auth/login.
+
+Purpose:
+
+  Edit organization, admin credentials, and tracking configuration.
+
+Request:
+
+  {
+    "org_name": "Teal Ops",
+    "org_code": "teal-ops",
+    "max_users": 50,
+    "admin_name": "Org Admin",
+    "admin_email": "admin@example.com",
+    "admin_password": "",
+    "auto_checkout_enabled": true,
+    "tracking_timeout_hours": 4,
+    "tracking_interval_minutes": 30
+  }
+
+Notes:
+
+  Leave admin_password empty to keep the existing password.
+  tracking_interval_minutes is controlled here by superadmin.
+  Org admin should not edit the interval.
+
+Success response:
+
+  {
+    "success": true
+  }
+
+
+15. PAGINATION
+--------------
+
+Dashboard list APIs use this format:
+
+  {
+    "page": 1,
+    "page_size": 20,
+    "total": 125,
+    "pages": 7,
+    "has_next": true,
+    "has_prev": false
+  }
+
+Mobile/admin UI should request the next page only when has_next is true.
+
+
+16. MOBILE IMPLEMENTATION NOTES
+-------------------------------
+
+Check-in:
+
+  POST /login
+  POST /authenticate
+  POST /attendance with attendance_type=check_in
+  POST /location-track immediately
+  Repeat /location-track every tracking_interval_minutes
+
+Check-out:
+
+  POST /login or use saved next_attendance_type
+  POST /authenticate
+  POST /attendance with attendance_type=check_out
+  Stop location tracking
+
+GPS and network failures:
+
+  GPS unavailable with internet:
+    send /location-track with tracking_status=failed and remark.
+
+  No internet:
+    save event locally with original timestamp and sync later.
+
+Auto-checkout:
+
+  Backend performs it automatically.
+  Mobile should refresh state around expected_checkout_at.
+  If login response returns is_checked_in=false, stop tracking.
+
+Map view:
+
+  Use map_points from /api/org-admin/attendance or /api/user/dashboard.
+  Draw markers ordered by timestamp.
+  Use tracking_status and remark to show failed or missed GPS events in detail
+  panels, even when there is no latitude/longitude.
+
+
+17. COMMON STATUS CODES
+-----------------------
+
+200:
+
+  Request completed.
+
+400:
+
+  Required field missing or invalid request data.
+
+401:
+
+  Web dashboard session missing or invalid credentials.
+
+403:
+
+  Organization or user is inactive.
+
+409:
+
+  Duplicate organization, user, or limit reached.
+
+413:
+
+  Uploaded image is too large.
+
+422:
+
+  Face image rejected, for example no face detected.
+
+500:
+
+  Server error.

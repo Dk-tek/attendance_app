@@ -1,0 +1,559 @@
+:root {
+  font-family: Inter, "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --surface-strong: #edf5f1;
+  --text: #17212b;
+  --muted: #657282;
+  --line: #dce3ea;
+  --brand: #178f72;
+  --brand-strong: #0f6a59;
+  --accent: #b7791f;
+  --danger: #d1495b;
+  --info: #2f6fed;
+  --shadow: 0 16px 34px rgba(23, 33, 43, 0.08);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1718;
+  --surface: #151f20;
+  --surface-strong: #1c2d2d;
+  --text: #edf7f5;
+  --muted: #a8bbb8;
+  --line: #294142;
+  --brand: #23b89a;
+  --brand-strong: #7ce0cf;
+  --accent: #d4a64a;
+  --danger: #ee6b7a;
+  --info: #6aa6ff;
+  --shadow: 0 18px 38px rgba(0, 0, 0, 0.28);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.loginPage {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 460px);
+  gap: 32px;
+  align-items: center;
+  padding: clamp(20px, 4vw, 56px);
+}
+
+.loginIntro h1,
+.workspaceTop h1 {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 58px);
+  line-height: 1.02;
+  letter-spacing: 0;
+}
+
+.loginIntro p {
+  max-width: 620px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--brand-strong);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.loginPanel,
+.panel,
+.stat,
+.mapPanel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.loginPanel {
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+}
+
+.loginPanelHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.loginPanelHead h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.appShell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 24px;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.brand {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 28px;
+  color: var(--brand-strong);
+}
+
+.brand span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+.navButton {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 800;
+  text-align: left;
+}
+
+.navButton:hover,
+.navButton.active {
+  background: var(--surface-strong);
+  color: var(--brand-strong);
+}
+
+.workspace {
+  min-width: 0;
+  padding: 28px;
+}
+
+.workspaceTop,
+.sectionHead,
+.toolbar,
+.rowMeta,
+.filterBar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.workspaceTop,
+.sectionHead {
+  justify-content: space-between;
+}
+
+.workspaceTop {
+  margin-bottom: 24px;
+}
+
+.headerCopy {
+  max-width: 720px;
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.toolbar {
+  flex-wrap: wrap;
+}
+
+.selectLabel {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  min-width: 190px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.selectLabel select {
+  border: 0;
+  background: transparent;
+}
+
+.selectLabel.wide {
+  width: 100%;
+}
+
+.stack {
+  display: grid;
+  gap: 20px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stat {
+  min-height: 150px;
+  padding: 18px;
+}
+
+.statIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--brand-strong);
+}
+
+.stat p {
+  margin: 14px 0 6px;
+  color: var(--muted);
+}
+
+.stat strong {
+  display: block;
+  font-size: 30px;
+}
+
+.stat small {
+  color: var(--muted);
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.panel {
+  padding: 20px;
+  overflow: hidden;
+}
+
+.panel h2,
+.sectionHead h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.prosePanel p {
+  max-width: 860px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.actionsRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  color: var(--muted);
+}
+
+.paginationBar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.formGrid {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.checkRow {
+  display: flex;
+  grid-template-columns: none;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.checkRow input {
+  width: 18px;
+  min-height: 18px;
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.iconButton {
+  min-height: 42px;
+  border: 0;
+  border-radius: 6px;
+  font-weight: 800;
+}
+
+.primaryButton {
+  background: var(--brand);
+  color: #fff;
+}
+
+.secondaryButton {
+  padding: 0 14px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.dangerButton {
+  padding: 0 14px;
+  background: var(--danger);
+  color: #fff;
+}
+
+.iconButton {
+  width: 44px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.notice {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.notice.error {
+  border-color: rgba(209, 73, 91, 0.28);
+  background: rgba(209, 73, 91, 0.1);
+  color: var(--danger);
+}
+
+.orgList {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.rowCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.rowCard p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.rowMeta {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.filterBar {
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.filterBar input,
+.filterBar select {
+  width: auto;
+  min-width: 180px;
+}
+
+.mapPanel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.attendanceMap {
+  width: 100%;
+  min-height: 430px;
+}
+
+.detailPanel dl {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 12px;
+  margin: 18px 0 0;
+}
+
+.detailPanel dt {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.detailPanel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.tablePanel {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 13px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+td {
+  min-width: 110px;
+}
+
+@media (max-width: 1100px) {
+  .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  nav {
+    grid-auto-flow: column;
+    overflow-x: auto;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .loginPage {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .workspace {
+    padding: 16px;
+  }
+
+  .workspaceTop,
+  .sectionHead,
+  .sidebar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .rowCard {
+    grid-template-columns: 1fr;
+  }
+
+  .rowMeta {
+    justify-content: flex-start;
+  }
+
+  .filterBar input,
+  .filterBar select,
+  .filterBar button {
+    width: 100%;
+  }
+
+  .attendanceMap {
+    min-height: 340px;
+  }
+}
