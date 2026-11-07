@@ -93,6 +93,10 @@ function AttendanceDetail({ data, selectedGroup, onBack, onPageChange }) {
         <MapView points={data.map_points} />
       </Suspense>
       <DataTable
+        columns={["GPS status", "Remark", "Time"]}
+        rows={(data.map_points || []).filter((point) => point.tracking_status === "failed").map((point) => [point.tracking_status, point.remark, point.display_timestamp || point.timestamp])}
+      />
+      <DataTable
         columns={["Type", "Latitude", "Longitude", "Remark", "Time"]}
         rows={data.rows.map((row) => [
           row.attendance_type,

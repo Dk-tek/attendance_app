@@ -1,2 +1,10 @@
 venv/
 *.onnx
+# Local tools and secrets
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+frontend/node_modules/
+
+.local-run/

@@ -20,7 +20,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel
-from pymongo import ASCENDING, MongoClient
+from pymongo import ASCENDING, MongoClient, ReturnDocument
+from mobile_api import MobileAPI, as_utc
 from sklearn.metrics.pairwise import cosine_similarity
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -45,6 +46,10 @@ def load_env_file(path=".env"):
 load_env_file()
 
 
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+if not SESSION_SECRET or len(SESSION_SECRET) < 32:
+    raise RuntimeError("Set SESSION_SECRET to a random secret of at least 32 characters")
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -60,7 +65,8 @@ app.add_middleware(
 )
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET", "attendance-secret-change-me"),
+    secret_key=SESSION_SECRET,
+    https_only=os.getenv("COOKIE_SECURE", "true").lower() == "true",
     same_site="lax",
 )
 
@@ -82,7 +88,7 @@ USER_COLLECTION_NAME = os.getenv("USER_COLLECTION_NAME", "users")
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.60"))
 MAX_FILE_BYTES = int(os.getenv("MAX_FILE_BYTES", str(10 * 1024 * 1024)))
 SUPERADMIN_EMAIL = os.getenv("SUPERADMIN_EMAIL", "superadmin@example.com")
-SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD", "superadmin123")
+SUPERADMIN_PASSWORD = os.getenv("SUPERADMIN_PASSWORD", "")
 DEFAULT_TRACKING_TIMEOUT_HOURS = float(os.getenv("DEFAULT_TRACKING_TIMEOUT_HOURS", "4"))
 DEFAULT_TRACKING_INTERVAL_MINUTES = int(os.getenv("DEFAULT_TRACKING_INTERVAL_MINUTES", "30"))
 AUTO_CHECKOUT_POLL_SECONDS = int(os.getenv("AUTO_CHECKOUT_POLL_SECONDS", "60"))
@@ -121,14 +127,6 @@ attendance_sessions_collection = db[COLLECTION_SESSIONS]
 organizations_collection = db[ORG_COLLECTION_NAME]
 admin_users_collection = db[ADMIN_COLLECTION_NAME]
 users_collection = db[USER_COLLECTION_NAME]
-
-
-class AttendanceModel(BaseModel):
-    employee_id: str
-    employee_name: str
-    latitude: float
-    longitude: float
-    timestamp: datetime
 
 
 class LoginModel(BaseModel):
@@ -224,7 +222,9 @@ def require_superadmin(request: Request):
 
 
 def require_org_admin(request: Request):
-    if request.session.get("role") != "org_admin":
+    try:
+        require_api_role(request, "org_admin")
+    except HTTPException:
         return redirect("/org-admin/login")
     return None
 
@@ -306,94 +306,31 @@ def get_attendance_state(org_id: str, employee_id: str):
     }
 
 
-def open_attendance_session(body: dict):
-    org_id = body.get("org_id")
-    employee_id = body.get("employee_id")
-    if not org_id or not employee_id:
-        return None
-
-    existing = find_active_session(org_id, employee_id)
-    if existing:
-        return existing
-
-    settings = get_org_tracking_settings(org_id)
-    check_in_dt = parse_record_timestamp(body.get("timestamp")) or utc_now()
-    expected_checkout_at = check_in_dt + timedelta(hours=settings["tracking_timeout_hours"])
-    session_doc = {
-        "session_id": uuid.uuid4().hex,
-        "org_id": org_id,
-        "employee_id": employee_id,
-        "employee_name": body.get("employee_name", ""),
-        "check_in_time": check_in_dt,
-        "expected_checkout_at": expected_checkout_at,
-        "status": "active",
-        "auto_checkout_enabled": settings["auto_checkout_enabled"],
-        "tracking_timeout_hours": settings["tracking_timeout_hours"],
-        "tracking_interval_minutes": settings["tracking_interval_minutes"],
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
-    attendance_sessions_collection.insert_one(session_doc)
-    session_doc.pop("_id", None)
-    return session_doc
-
-
-def close_attendance_session(body: dict, checkout_source="manual", remark=""):
-    org_id = body.get("org_id")
-    employee_id = body.get("employee_id")
-    if not org_id or not employee_id:
-        return
-    active = find_active_session(org_id, employee_id)
-    if not active:
-        return
-    attendance_sessions_collection.update_one(
-        {"session_id": active["session_id"]},
-        {"$set": {
-            "status": "closed",
-            "check_out_time": parse_record_timestamp(body.get("timestamp")) or utc_now(),
-            "checkout_source": checkout_source,
-            "checkout_remark": remark,
-            "updated_at": utc_now(),
-        }},
-    )
-
-
 def auto_checkout_due_sessions():
     now = utc_now()
-    due_sessions = list(attendance_sessions_collection.find(
-        {
-            "status": "active",
-            "auto_checkout_enabled": True,
-            "expected_checkout_at": {"$lte": now},
-        },
-        {"_id": 0},
-    ))
-    for session_doc in due_sessions:
-        checkout_record = {
-            "employee_id": session_doc.get("employee_id", ""),
-            "employee_name": session_doc.get("employee_name", ""),
-            "org_id": session_doc.get("org_id", ""),
-            "attendance_type": "check_out",
-            "timestamp": now.isoformat(),
-            "checkout_source": "auto",
-            "remark": (
-                f"Auto checkout after {session_doc.get('tracking_timeout_hours', DEFAULT_TRACKING_TIMEOUT_HOURS)} "
-                "hours without manual checkout"
-            ),
-            "session_id": session_doc.get("session_id"),
-        }
-        attendance_collection.insert_one(checkout_record)
-        attendance_sessions_collection.update_one(
-            {"session_id": session_doc["session_id"]},
-            {"$set": {
-                "status": "closed",
-                "check_out_time": now,
-                "checkout_source": "auto",
-                "checkout_remark": checkout_record["remark"],
-                "updated_at": now,
-            }},
+    count = 0
+    while True:
+        session = attendance_sessions_collection.find_one_and_update(
+            {"status": "active", "auto_checkout_enabled": True, "expected_checkout_at": {"$lte": now}},
+            {"$set": {"status": "closed", "checkout_source": "auto", "checkout_remark": "Automatic checkout at configured deadline", "updated_at": now}},
+            return_document=ReturnDocument.AFTER,
         )
-    return len(due_sessions)
+        if not session:
+            break
+        attendance_sessions_collection.update_one(
+            {"session_id": session["session_id"]},
+            {"$set": {"check_out_time": session["expected_checkout_at"], "check_out_event_id": "auto-" + session["session_id"]}},
+        )
+        count += 1
+    # Repair interrupted writes as well as normal transitions. Session is authoritative.
+    for session in attendance_sessions_collection.find({"status": "closed", "checkout_source": "auto", "check_out_event_id": {"$exists": False}}):
+        attendance_sessions_collection.update_one({"session_id": session["session_id"]}, {"$set": {"check_out_time": session["expected_checkout_at"], "check_out_event_id": "auto-" + session["session_id"]}})
+    for session in attendance_sessions_collection.find({"$or": [{"check_in_event_id": {"$exists": True}, "check_in_recorded": {"$ne": True}}, {"check_out_event_id": {"$exists": True}, "check_out_recorded": {"$ne": True}}]}):
+        for kind in ("check_in", "check_out"):
+            if session.get(kind + "_event_id") and not session.get(kind + "_recorded"):
+                mobile.record_transition(session, kind)
+                attendance_sessions_collection.update_one({"session_id": session["session_id"]}, {"$set": {kind + "_recorded": True}})
+    return count
 
 
 async def auto_checkout_loop():
@@ -411,10 +348,10 @@ async def auto_checkout_loop():
 
 def parse_record_timestamp(value):
     if isinstance(value, datetime):
-        return value
+        return as_utc(value)
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value)
+            return as_utc(datetime.fromisoformat(value.replace("Z", "+00:00")))
         except ValueError:
             return None
     return None
@@ -422,7 +359,7 @@ def parse_record_timestamp(value):
 
 def format_display_timestamp(value):
     dt = parse_record_timestamp(value)
-    return dt.strftime("%d-%m-%Y %I:%M:%S %p") if dt else (value or "")
+    return dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%d-%m-%Y %I:%M:%S %p IST") if dt else (value or "")
 
 
 def format_api_timestamp(value):
@@ -445,7 +382,7 @@ def is_timestamp_in_range(value, start_date=None, end_date=None, month=None, exa
     dt = parse_record_timestamp(value)
     if not dt:
         return False
-    item_date = dt.date()
+    item_date = dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date()
     if exact_date and item_date != exact_date:
         return False
     if month:
@@ -500,6 +437,16 @@ def require_api_role(request: Request, *roles: str):
     role = request.session.get("role")
     if role not in roles:
         raise HTTPException(status_code=401, detail="Login required")
+    if role in {"org_admin", "user"}:
+        org_id = request.session.get("org_id")
+        org = get_org_by_id(org_id)
+        if role == "org_admin":
+            profile = admin_users_collection.find_one({"org_id": org_id, "email": request.session.get("admin_email")})
+        else:
+            profile = users_collection.find_one({"org_id": org_id, "employee_id": request.session.get("employee_id")})
+        if not org or not org.get("is_active", False) or not profile or not profile.get("is_active", True):
+            request.session.clear()
+            raise HTTPException(status_code=403, detail="Account or organization is inactive")
     return role
 
 
@@ -572,12 +519,12 @@ def get_orgs_with_insights(page: int = 1, page_size: int = 20):
 
 
 def get_today_attendance_count(org_id: str) -> int:
-    today = datetime.now().date()
+    today = utc_now().astimezone(timezone(timedelta(hours=5, minutes=30))).date()
     count = 0
     cursor = attendance_collection.find({"org_id": org_id}, {"timestamp": 1})
     for record in cursor:
         dt = parse_record_timestamp(record.get("timestamp"))
-        if dt and dt.date() == today:
+        if dt and dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date() == today:
             count += 1
     return count
 
@@ -612,6 +559,7 @@ def get_org_map_points(org_id: str):
         points.append({
             "employee_id": record.get("employee_id", ""),
             "employee_name": record.get("employee_name", ""),
+            "session_id": record.get("session_id"),
             "type": record.get("attendance_type", "attendance"),
             "latitude": record.get("latitude"),
             "longitude": record.get("longitude"),
@@ -622,6 +570,7 @@ def get_org_map_points(org_id: str):
         points.append({
             "employee_id": record.get("employee_id", ""),
             "employee_name": record.get("employee_name", ""),
+            "session_id": record.get("session_id"),
             "type": "location_track",
             "latitude": record.get("latitude"),
             "longitude": record.get("longitude"),
@@ -679,6 +628,7 @@ def get_filtered_map_points(org_id: str, employee_id=None, start=None, end=None,
         points.append({
             "employee_id": record.get("employee_id", ""),
             "employee_name": record.get("employee_name", ""),
+            "session_id": record.get("session_id"),
             "type": record.get("attendance_type", "attendance"),
             "latitude": record.get("latitude"),
             "longitude": record.get("longitude"),
@@ -694,6 +644,7 @@ def get_filtered_map_points(org_id: str, employee_id=None, start=None, end=None,
         points.append({
             "employee_id": record.get("employee_id", ""),
             "employee_name": record.get("employee_name", ""),
+            "session_id": record.get("session_id"),
             "type": "location_track",
             "latitude": record.get("latitude"),
             "longitude": record.get("longitude"),
@@ -712,11 +663,11 @@ def get_attendance_date_groups(rows, map_points):
         dt = parse_record_timestamp(row.get("timestamp"))
         if not dt:
             continue
-        key = (row.get("employee_id", ""), dt.date().isoformat())
+        key = (row.get("employee_id", ""), dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date().isoformat())
         item = grouped.setdefault(key, {
             "employee_id": row.get("employee_id", ""),
             "employee_name": row.get("employee_name", ""),
-            "date": dt.date().isoformat(),
+            "date": dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date().isoformat(),
             "check_in_count": 0,
             "check_out_count": 0,
             "attendance_count": 0,
@@ -738,11 +689,11 @@ def get_attendance_date_groups(rows, map_points):
         dt = parse_record_timestamp(point.get("timestamp"))
         if not dt:
             continue
-        key = (point.get("employee_id", ""), dt.date().isoformat())
+        key = (point.get("employee_id", ""), dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date().isoformat())
         item = grouped.setdefault(key, {
             "employee_id": point.get("employee_id", ""),
             "employee_name": point.get("employee_name", ""),
-            "date": dt.date().isoformat(),
+            "date": dt.astimezone(timezone(timedelta(hours=5, minutes=30))).date().isoformat(),
             "check_in_count": 0,
             "check_out_count": 0,
             "attendance_count": 0,
@@ -752,9 +703,13 @@ def get_attendance_date_groups(rows, map_points):
             "last_time": "",
         })
         if point.get("type") == "location_track":
-            item["gps_count"] += 1
-            if point.get("tracking_status") != "ok":
+            if point.get("tracking_status") == "ok":
+                item["gps_count"] += 1
+            else:
                 item["failed_gps_count"] += 1
+        point_time = point.get("timestamp") or ""
+        item["first_time"] = min([value for value in [item["first_time"], point_time] if value], default=point_time)
+        item["last_time"] = max(item["last_time"], point_time)
 
     groups = list(grouped.values())
     for item in groups:
@@ -1009,6 +964,9 @@ def redirect(url: str):
     return RedirectResponse(url=url, status_code=303)
 
 
+mobile = MobileAPI(globals(), SESSION_SECRET)
+
+
 @app.on_event("startup")
 async def startup():
     organizations_collection.create_index([("org_id", ASCENDING)], unique=True)
@@ -1021,6 +979,10 @@ async def startup():
     location_collection.create_index([("org_id", ASCENDING), ("employee_id", ASCENDING)])
     attendance_sessions_collection.create_index([("org_id", ASCENDING), ("employee_id", ASCENDING), ("status", ASCENDING)])
     attendance_sessions_collection.create_index([("status", ASCENDING), ("expected_checkout_at", ASCENDING)])
+    attendance_sessions_collection.create_index([("org_id", 1), ("employee_id", 1)], unique=True, partialFilterExpression={"status": "active"}, name="one_active_session")
+    attendance_sessions_collection.create_index("session_id", unique=True)
+    attendance_collection.create_index("event_id", unique=True, sparse=True)
+    location_collection.create_index([("org_id", 1), ("employee_id", 1), ("event_id", 1)], unique=True, partialFilterExpression={"event_id": {"$exists": True}})
     app.state.auto_checkout_task = asyncio.create_task(auto_checkout_loop())
     logger.info("Registered routes:")
     for route in app.routes:
@@ -1052,7 +1014,7 @@ async def api_login(request: Request, payload: WebLoginModel):
     lookup = username.lower()
 
     if role in {"auto", "superadmin"}:
-        if lookup != SUPERADMIN_EMAIL.lower().strip() or password != SUPERADMIN_PASSWORD:
+        if lookup != SUPERADMIN_EMAIL.lower().strip() or (not SUPERADMIN_PASSWORD or password != SUPERADMIN_PASSWORD):
             if role == "superadmin":
                 raise HTTPException(status_code=401, detail="Invalid super admin credentials")
         else:
@@ -1323,12 +1285,15 @@ async def api_user_dashboard(
 
 @app.post("/login")
 async def mobile_login(payload: LoginModel):
+    await anyio.to_thread.run_sync(auto_checkout_due_sessions)
     username = payload.username.strip()
     password = payload.password
     lookup = username.lower()
 
     admin = get_admin_by_email(lookup)
     if admin and verify_password(password, admin.get("password_hash", "")):
+        if not admin.get("is_active", True):
+            return {"success": False, "message": "Account is inactive"}
         org = get_org_by_id(admin.get("org_id", ""))
         if not org or not org.get("is_active", False):
             return {"success": False, "message": "Organization is inactive"}
@@ -1336,6 +1301,7 @@ async def mobile_login(payload: LoginModel):
         return {
             "success": True,
             "user_type": "admin",
+            "access_token": mobile.issue_token("admin", admin.get("admin_id") or admin["email"], admin["org_id"], admin["email"]),
             "employee_id": admin.get("admin_id") or admin.get("email", ""),
             "employee_name": admin.get("name") or admin.get("email", ""),
             "org_id": admin.get("org_id", ""),
@@ -1362,6 +1328,7 @@ async def mobile_login(payload: LoginModel):
         return {
             "success": True,
             "user_type": "user",
+            "access_token": mobile.issue_token("user", user["employee_id"], user["org_id"]),
             "employee_id": user.get("employee_id", ""),
             "employee_name": user.get("employee_name", ""),
             "org_id": user.get("org_id", ""),
@@ -1383,7 +1350,7 @@ async def superadmin_login(
     email: str = Form(...),
     password: str = Form(...),
 ):
-    if email.lower().strip() != SUPERADMIN_EMAIL.lower().strip() or password != SUPERADMIN_PASSWORD:
+    if email.lower().strip() != SUPERADMIN_EMAIL.lower().strip() or (not SUPERADMIN_PASSWORD or password != SUPERADMIN_PASSWORD):
         set_flash(request, "Invalid super admin credentials", "error")
         return redirect("/superadmin/login")
 
@@ -1774,14 +1741,15 @@ async def org_admin_logout(request: Request):
 
 @app.post("/enroll-face")
 async def enroll_face(
+    request: Request,
     employee_id: str = Form(...),
     employee_name: str = Form(...),
     org_id: str = Form(...),
     file: UploadFile = File(...),
 ):
+    who = mobile.identity(request, admin=True)
+    mobile.scope(who, org_id)
     org = get_org_by_id(org_id)
-    if not org or not org.get("is_active", False):
-        raise HTTPException(status_code=403, detail="Organization is inactive")
 
     image_bytes = await file.read(MAX_FILE_BYTES + 1)
     if len(image_bytes) > MAX_FILE_BYTES:
@@ -1822,9 +1790,13 @@ async def enroll_face(
 
 @app.post("/authenticate")
 async def authenticate(
+    request: Request,
     live_image: UploadFile = File(...),
     org_id: str | None = Form(None),
 ):
+    who = mobile.identity(request)
+    org_id = org_id or who["org_id"]
+    mobile.scope(who, org_id)
     if org_id:
         org = get_org_by_id(org_id)
         if not org or not org.get("is_active", False):
@@ -1881,7 +1853,10 @@ async def authenticate(
             best_match = employees[idx]
 
     if best_score >= SIMILARITY_THRESHOLD:
+        mobile.scope(who, org_id, best_match["employee_id"])
         return {
+            "face_token": mobile.face_proof(who, best_match["employee_id"]),
+            **get_attendance_state(org_id, best_match["employee_id"]),
             "authenticated": True,
             "employee_id": best_match["employee_id"],
             "employee_name": best_match["employee_name"],
@@ -1899,17 +1874,24 @@ async def authenticate(
 
 
 @app.get("/list")
-async def list_employees(org_id: str | None = None):
+async def list_employees(request: Request, org_id: str | None = None):
+    who = mobile.identity(request, admin=True)
+    org_id = org_id or who["org_id"]
+    mobile.scope(who, org_id)
     query = {"org_id": org_id} if org_id else {}
     return list(collection.find(query, {"_id": 0, "employee_id": 1, "employee_name": 1, "org_id": 1}))
 
 
 @app.post("/edit/{empid}")
 async def edit_employee(
+    request: Request,
     empid: str,
     employee_name: str = Form(...),
     org_id: str | None = Form(None),
 ):
+    who = mobile.identity(request, admin=True)
+    org_id = org_id or who["org_id"]
+    mobile.scope(who, org_id)
     query = {"employee_id": empid}
     if org_id:
         query["org_id"] = org_id
@@ -1918,7 +1900,10 @@ async def edit_employee(
 
 
 @app.delete("/delete/{empid}")
-async def delete_employee(empid: str, org_id: str | None = None):
+async def delete_employee(request: Request, empid: str, org_id: str | None = None):
+    who = mobile.identity(request, admin=True)
+    org_id = org_id or who["org_id"]
+    mobile.scope(who, org_id)
     query = {"employee_id": empid}
     if org_id:
         query["org_id"] = org_id
@@ -1926,81 +1911,11 @@ async def delete_employee(empid: str, org_id: str | None = None):
     return {"success": True}
 
 
-@app.post("/attendance")
-async def mark_attendance(request: Request):
-    try:
-        body = await request.json()
-        employee_id = body.get("employee_id")
-        attendance_type = body.get("attendance_type")
-        if not employee_id:
-            return JSONResponse(status_code=400, content={"success": False, "error": "employee_id is required"})
-        if attendance_type not in {"check_in", "check_out"}:
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "error": "attendance_type must be check_in or check_out"},
-            )
-        if "org_id" not in body and body.get("employee_id"):
-            user_doc = users_collection.find_one(
-                {"employee_id": body["employee_id"]},
-                {"_id": 0, "org_id": 1, "employee_name": 1},
-            )
-            if not user_doc:
-                user_doc = collection.find_one(
-                    {"employee_id": body["employee_id"]},
-                    {"_id": 0, "org_id": 1, "employee_name": 1},
-                )
-            if user_doc:
-                body["org_id"] = user_doc.get("org_id")
-                body.setdefault("employee_name", user_doc.get("employee_name"))
-        if not body.get("org_id"):
-            return JSONResponse(status_code=400, content={"success": False, "error": "org_id is required"})
-        if "timestamp" not in body:
-            body["timestamp"] = utc_now().isoformat()
-        active_session = find_active_session(body["org_id"], employee_id)
-        if active_session:
-            body["session_id"] = active_session.get("session_id")
-        attendance_collection.insert_one(body)
-        session_doc = None
-        if attendance_type == "check_in":
-            session_doc = open_attendance_session(body)
-            if session_doc:
-                attendance_collection.update_one(
-                    {
-                        "employee_id": employee_id,
-                        "org_id": body["org_id"],
-                        "attendance_type": "check_in",
-                        "timestamp": body["timestamp"],
-                    },
-                    {"$set": {"session_id": session_doc.get("session_id")}},
-                )
-        if attendance_type == "check_out":
-            close_attendance_session(
-                body,
-                checkout_source=body.get("checkout_source", "manual"),
-                remark=body.get("remark", ""),
-            )
-        return {
-            "success": True,
-            "message": "Checkout marked successfully" if attendance_type == "check_out" else "Attendance marked successfully",
-            "attendance_type": attendance_type,
-            "is_checked_in": attendance_type == "check_in",
-            "attendance_state": "checked_in" if attendance_type == "check_in" else "checked_out",
-            "next_attendance_type": "check_out" if attendance_type == "check_in" else "check_in",
-            "session_id": (session_doc or active_session or {}).get("session_id", ""),
-            "expected_checkout_at": format_api_timestamp((session_doc or {}).get("expected_checkout_at")),
-            "tracking_interval_minutes": (session_doc or {}).get(
-                "tracking_interval_minutes",
-                get_org_tracking_settings(body["org_id"]).get("tracking_interval_minutes"),
-            ),
-            "tracking_settings": get_org_tracking_settings(body["org_id"]),
-        }
-    except Exception as exc:
-        logger.error(str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
-
-
 @app.get("/attendance-record/{employee_id}")
-async def get_attendance(employee_id: str, org_id: str | None = None):
+async def get_attendance(request: Request, employee_id: str, org_id: str | None = None):
+    who = mobile.identity(request)
+    org_id = org_id or who["org_id"]
+    mobile.scope(who, org_id, employee_id)
     try:
         query = {"employee_id": employee_id}
         if org_id:
@@ -2018,46 +1933,4 @@ async def get_attendance(employee_id: str, org_id: str | None = None):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/location-track")
-async def save_location_track(request: Request):
-    try:
-        body = await request.json()
-        employee_id = body.get("employee_id")
-        org_id = body.get("org_id")
-        tracking_status = body.get("tracking_status", "ok")
-        if not employee_id:
-            return JSONResponse(status_code=400, content={"success": False, "error": "employee_id is required"})
-        if not org_id:
-            return JSONResponse(status_code=400, content={"success": False, "error": "org_id is required"})
-        if tracking_status == "ok" and ("latitude" not in body or "longitude" not in body):
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "error": "latitude and longitude are required when tracking_status is ok"},
-            )
-        if tracking_status != "ok" and not body.get("remark"):
-            return JSONResponse(
-                status_code=400,
-                content={"success": False, "error": "remark is required when tracking_status is not ok"},
-            )
-
-        user_doc = users_collection.find_one(
-            {"employee_id": employee_id, "org_id": org_id},
-            {"_id": 0, "employee_name": 1},
-        )
-        face_doc = collection.find_one(
-            {"employee_id": employee_id, "org_id": org_id},
-            {"_id": 0, "employee_name": 1},
-        )
-        employee_name = body.get("employee_name") or (user_doc or face_doc or {}).get("employee_name", "")
-        if "timestamp" not in body:
-            body["timestamp"] = utc_now().isoformat()
-        body["employee_name"] = employee_name
-        body["tracking_status"] = tracking_status
-        active_session = find_active_session(org_id, employee_id)
-        if active_session:
-            body["session_id"] = active_session.get("session_id")
-        location_collection.insert_one(body)
-        return {"success": True, "message": "Location saved"}
-    except Exception as exc:
-        logger.error(str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+mobile.install(app)

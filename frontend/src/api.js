@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_BASE || "";
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
+    signal: AbortSignal.timeout(20000),
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {})
