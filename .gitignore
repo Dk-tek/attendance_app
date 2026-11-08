@@ -8,3 +8,5 @@ __pycache__/
 frontend/node_modules/
 
 .local-run/
+.test-deps/
+.browser-artifacts/

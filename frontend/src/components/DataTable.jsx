@@ -1,6 +1,6 @@
 export function DataTable({ columns, rows }) {
   return (
-    <section className="panel tablePanel">
+    <section className="tablePanel" tabIndex={0} aria-label="Data table, scroll horizontally for more columns">
       <table>
         <thead>
           <tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr>
@@ -11,7 +11,7 @@ export function DataTable({ columns, rows }) {
               {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
             </tr>
           )) : (
-            <tr><td colSpan={columns.length}>No records found.</td></tr>
+            <tr><td className="emptyState" colSpan={columns.length}><strong>No records found</strong><p>Try adjusting your search or filters.</p></td></tr>
           )}
         </tbody>
       </table>

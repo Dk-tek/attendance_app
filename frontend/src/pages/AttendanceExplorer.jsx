@@ -12,6 +12,8 @@ const MapView = lazy(() => import("../components/MapView").then((module) => ({ d
 export function AttendanceExplorer({ users = [], onBack }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const changeSize = (size) => { setPageSize(size); setPage(1); };
   const [selectedGroup, setSelectedGroup] = useState(null);
   const query = useMemo(() => {
     if (selectedGroup) {
@@ -28,8 +30,8 @@ export function AttendanceExplorer({ users = [], onBack }) {
   }, [filters]);
   useEffect(() => setPage(1), [selectedGroup]);
   const { data, error, loading } = useLoad(
-    () => api.orgAttendance({ ...query, page, page_size: 20 }),
-    [JSON.stringify(query), page, selectedGroup?.employee_id, selectedGroup?.date],
+    () => api.orgAttendance({ ...query, page, page_size: pageSize }),
+    [JSON.stringify(query), page, pageSize, selectedGroup?.employee_id, selectedGroup?.date],
   );
 
   return (
@@ -48,16 +50,17 @@ export function AttendanceExplorer({ users = [], onBack }) {
             selectedGroup={selectedGroup}
             onBack={() => setSelectedGroup(null)}
             onPageChange={setPage}
+            onPageSizeChange={changeSize}
           />
         ) : (
-          <AttendanceSummary data={data} onSelect={setSelectedGroup} onPageChange={setPage} />
+          <AttendanceSummary data={data} onSelect={setSelectedGroup} onPageChange={setPage} onPageSizeChange={changeSize} />
         )
       ) : null}
     </div>
   );
 }
 
-function AttendanceSummary({ data, onSelect, onPageChange }) {
+function AttendanceSummary({ data, onSelect, onPageChange, onPageSizeChange }) {
   return (
     <>
       <DataTable
@@ -74,12 +77,12 @@ function AttendanceSummary({ data, onSelect, onPageChange }) {
           <button className="secondaryButton" onClick={() => onSelect(group)}>View map</button>
         ])}
       />
-      <PaginationControls pagination={data.groups_pagination} onPageChange={onPageChange} />
+      <PaginationControls pagination={data.groups_pagination} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
     </>
   );
 }
 
-function AttendanceDetail({ data, selectedGroup, onBack, onPageChange }) {
+function AttendanceDetail({ data, selectedGroup, onBack, onPageChange, onPageSizeChange }) {
   return (
     <>
       <div className="sectionHead">
@@ -106,7 +109,7 @@ function AttendanceDetail({ data, selectedGroup, onBack, onPageChange }) {
           row.display_timestamp || row.timestamp
         ])}
       />
-      <PaginationControls pagination={data.pagination} onPageChange={onPageChange} />
+      <PaginationControls pagination={data.pagination} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
     </>
   );
 }

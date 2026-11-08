@@ -8,17 +8,24 @@ import { PaginationControls } from "../components/PaginationControls";
 import { Stat } from "../components/Stat";
 import { useLoad } from "../hooks/useLoad";
 import { cleanFilters, emptyFilters } from "../utils/filters";
+import { PolicyPage } from "./PolicyPage";
 
 const MapView = lazy(() => import("../components/MapView").then((module) => ({ default: module.MapView })));
 
 export function UserPage({ activePage }) {
+  if (["terms", "privacy"].includes(activePage)) return <PolicyPage key={activePage} kind={activePage} />;
+  return <UserDashboard activePage={activePage} />;
+}
+
+function UserDashboard({ activePage }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const query = useMemo(() => cleanFilters(filters), [filters]);
   useEffect(() => setPage(1), [query]);
   const { data, error, loading } = useLoad(
-    () => api.userDashboard({ ...query, page, page_size: 20 }),
-    [JSON.stringify(query), page],
+    () => api.userDashboard({ ...query, page, page_size: pageSize }),
+    [JSON.stringify(query), page, pageSize],
   );
 
   if (loading) return <Loading />;
@@ -30,7 +37,7 @@ export function UserPage({ activePage }) {
       {activePage === "records" ? (
         <>
           <FilterBar filters={filters} setFilters={setFilters} />
-          <AttendanceRecords data={data} onPageChange={setPage} />
+          <AttendanceRecords data={data} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} />
         </>
       ) : null}
       {activePage === "map" ? (
@@ -64,7 +71,7 @@ function UserOverview({ data }) {
   );
 }
 
-function AttendanceRecords({ data, onPageChange }) {
+function AttendanceRecords({ data, onPageChange, onPageSizeChange }) {
   return (
     <>
       <DataTable
@@ -76,7 +83,7 @@ function AttendanceRecords({ data, onPageChange }) {
           row.display_timestamp || row.timestamp
         ])}
       />
-      <PaginationControls pagination={data.pagination} onPageChange={onPageChange} />
+      <PaginationControls pagination={data.pagination} onPageChange={onPageChange} onPageSizeChange={onPageSizeChange} />
     </>
   );
 }

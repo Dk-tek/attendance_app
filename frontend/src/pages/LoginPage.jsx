@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Moon, Sun } from "lucide-react";
+import { ArrowLeft, Moon, Sun } from "lucide-react";
+import { Brand } from "../components/Brand";
 import { api } from "../api";
 
-export function LoginPage({ onLogin, theme, setTheme }) {
+export function LoginPage({ onLogin, theme, setTheme, onBack }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,8 +26,10 @@ export function LoginPage({ onLogin, theme, setTheme }) {
   return (
     <main className="loginPage">
       <section className="loginIntro">
-        <p className="eyebrow">Attendance monitoring application</p>
-        <h1>TrackPulse</h1>
+        <button className="secondaryButton" type="button" onClick={onBack}><ArrowLeft size={16} />Back to Field Pixel</button>
+        <Brand />
+        <p className="eyebrow">Your field operations workspace</p>
+        <h1>Every working day.<br />In focus.</h1>
         <p>
           A real-time attendance tracking application for face-based check-ins,
           organization monitoring, employee movement history, and efficient location visibility.

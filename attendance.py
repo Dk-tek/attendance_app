@@ -16,12 +16,13 @@ import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 from pymongo import ASCENDING, MongoClient, ReturnDocument
 from mobile_api import MobileAPI, as_utc
+from admin_modules import register_admin_modules, AssignmentInput, build_subscription
 from sklearn.metrics.pairwise import cosine_similarity
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -147,6 +148,7 @@ class OrgCreateModel(BaseModel):
     admin_name: str
     admin_email: str
     admin_password: str
+    subscription: AssignmentInput | None = None
 
 
 class OrgUpdateModel(BaseModel):
@@ -156,6 +158,7 @@ class OrgUpdateModel(BaseModel):
     admin_name: str
     admin_email: str
     admin_password: str = ""
+    subscription: AssignmentInput | None = None
     auto_checkout_enabled: bool = True
     tracking_timeout_hours: float = DEFAULT_TRACKING_TIMEOUT_HOURS
     tracking_interval_minutes: int = DEFAULT_TRACKING_INTERVAL_MINUTES
@@ -965,6 +968,7 @@ def redirect(url: str):
 
 
 mobile = MobileAPI(globals(), SESSION_SECRET)
+register_admin_modules(app, globals())
 
 
 @app.on_event("startup")
@@ -1004,6 +1008,16 @@ async def index(request: Request):
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    return PlainTextResponse("User-agent: *\nAllow: /app/\nDisallow: /api/\nDisallow: /superadmin/\nDisallow: /org-admin/\nDisallow: /docs\nDisallow: /redoc\nDisallow: /openapi.json\nSitemap: https://attendance.dreamcapture.in/sitemap.xml\n", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml():
+    return Response('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://attendance.dreamcapture.in/app/</loc></url></urlset>', media_type="application/xml", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.post("/api/auth/login")
@@ -1075,6 +1089,7 @@ async def api_superadmin_dashboard(request: Request, page: int = 1, page_size: i
 @app.post("/api/superadmin/orgs")
 async def api_create_org(request: Request, payload: OrgCreateModel):
     require_api_role(request, "superadmin")
+    subscription = build_subscription(db, payload.subscription) if payload.subscription else None
     org_code = payload.org_code.strip().lower()
     admin_email = payload.admin_email.strip().lower()
 
@@ -1090,6 +1105,7 @@ async def api_create_org(request: Request, payload: OrgCreateModel):
         "org_name": payload.org_name.strip(),
         "org_code": org_code,
         "max_users": payload.max_users,
+        **({"subscription": subscription} if subscription else {}),
         "is_active": True,
         "created_at": now,
         "updated_at": now,
@@ -1116,6 +1132,7 @@ async def api_superadmin_org_detail(request: Request, org_id: str, users_page: i
 @app.put("/api/superadmin/orgs/{org_id}")
 async def api_update_org(request: Request, org_id: str, payload: OrgUpdateModel):
     require_api_role(request, "superadmin")
+    subscription = build_subscription(db, payload.subscription) if payload.subscription else None
     org = get_org_by_id(org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -1134,6 +1151,7 @@ async def api_update_org(request: Request, org_id: str, payload: OrgUpdateModel)
             "org_name": payload.org_name.strip(),
             "org_code": org_code,
             "max_users": payload.max_users,
+            **({"subscription": subscription} if subscription else {}),
             "tracking_settings": normalize_tracking_settings({
                 "auto_checkout_enabled": payload.auto_checkout_enabled,
                 "tracking_timeout_hours": payload.tracking_timeout_hours,

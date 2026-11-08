@@ -1,137 +1,36 @@
-import { useState } from "react";
 import { CalendarDays, CheckCircle2, ShieldCheck, Users } from "lucide-react";
 import { api } from "../api";
 import { DataTable } from "../components/DataTable";
 import { Loading, Notice } from "../components/Feedback";
-import { PaginationControls } from "../components/PaginationControls";
 import { Stat } from "../components/Stat";
 import { useLoad } from "../hooks/useLoad";
 import { AttendanceExplorer } from "./AttendanceExplorer";
+import { EmployeesPage } from "./EmployeesPage";
+import { PolicyPage } from "./PolicyPage";
+import { SubscriptionPage } from "./SubscriptionPage";
 
 export function OrgAdminPage({ activePage }) {
-  const [refresh, setRefresh] = useState(0);
-  const [usersPage, setUsersPage] = useState(1);
-  const { data, error, loading } = useLoad(
-    () => api.orgDashboard({ users_page: usersPage, users_page_size: 10 }),
-    [refresh, usersPage],
-  );
-  const [form, setForm] = useState({ employee_id: "", employee_name: "", email: "", password: "" });
-  const [message, setMessage] = useState("");
-
-  async function createUser(event) {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await api.createUser(form);
-      setForm({ employee_id: "", employee_name: "", email: "", password: "" });
-      setMessage("User created. Face enrollment can be added from the mobile/API flow.");
-      setRefresh((value) => value + 1);
-    } catch (err) {
-      setMessage(err.message);
-    }
-  }
-
-  if (loading) return <Loading />;
-  if (error) return <Notice text={error} />;
-
-  return (
-    <div className="stack">
-      {activePage === "overview" ? <OrgOverview data={data} /> : null}
-      {activePage === "users" ? (
-        <section className="contentGrid">
-          <form className="panel formGrid" onSubmit={createUser}>
-            <h2>Create employee</h2>
-            <input placeholder="Employee ID" value={form.employee_id} onChange={(event) => setForm({ ...form, employee_id: event.target.value })} required />
-            <input placeholder="Employee name" value={form.employee_name} onChange={(event) => setForm({ ...form, employee_name: event.target.value })} required />
-            <input type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
-            <input type="password" placeholder="Password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required />
-            {message ? <div className="notice">{message}</div> : null}
-            <button className="primaryButton" type="submit">Create user</button>
-          </form>
-          <UserManagementTable
-            data={data}
-            onRefresh={() => setRefresh((value) => value + 1)}
-            onPageChange={setUsersPage}
-          />
-        </section>
-      ) : null}
-      {activePage === "attendance" ? <AttendanceExplorer users={data?.all_users || data?.users || []} /> : null}
-      {activePage === "settings" ? <TrackingSettings data={data} /> : null}
-    </div>
-  );
+  if (activePage === "users") return <EmployeesPage />;
+  if (["terms", "privacy"].includes(activePage)) return <PolicyPage key={activePage} kind={activePage} />;
+  if (["subscription", "organization"].includes(activePage)) return <SubscriptionPage />;
+  return <OrgDashboard activePage={activePage} />;
 }
 
-function OrgOverview({ data }) {
-  return (
-    <>
-      <section className="statsGrid">
-        <Stat label="Users" value={`${data.summary.users_count}/${data.summary.user_limit}`} detail={`${data.summary.capacity_used_percent}% capacity`} icon={Users} />
-        <Stat label="Active users" value={data.summary.active_users} detail={`${data.summary.inactive_users} inactive`} icon={CheckCircle2} />
-        <Stat label="Face coverage" value={`${data.summary.face_coverage_percent}%`} detail={`${data.summary.face_profiles} enrolled`} icon={ShieldCheck} />
-        <Stat label="Tracking now" value={data.summary.active_tracking_sessions} detail="Active check-in sessions" icon={CalendarDays} />
-      </section>
-      <section className="panel prosePanel">
-        <h2>Real-time tracking workspace</h2>
-        <p>
-          Monitor employee attendance activity, review location trails, and maintain face enrollment coverage for efficient field operations.
-        </p>
-      </section>
-    </>
-  );
+function OrgDashboard({ activePage }) {
+  const { data, error, loading } = useLoad(() => api.orgDashboard({ users_page_size: 10 }), []);
+  if (loading) return <Loading />;
+  if (error) return <Notice text={error} />;
+  if (activePage === "attendance") return <AttendanceExplorer users={data.all_users || data.users || []} />;
+  if (activePage === "settings") return <TrackingSettings data={data} />;
+  return <div className="stack"><section className="statsGrid">
+    <Stat label="Employees" value={`${data.summary.users_count}/${data.summary.user_limit}`} detail={`${data.summary.capacity_used_percent}% capacity used`} icon={Users} />
+    <Stat label="Active employees" value={data.summary.active_users} detail={`${data.summary.inactive_users} inactive`} icon={CheckCircle2} />
+    <Stat label="Face coverage" value={`${data.summary.face_coverage_percent}%`} detail={`${data.summary.face_profiles} enrolled`} icon={ShieldCheck} />
+    <Stat label="Tracking now" value={data.summary.active_tracking_sessions} detail={`${data.summary.attendance_today} attendance events today`} icon={CalendarDays} />
+  </section><div className="splitPanels"><section className="panel detailPanel"><h2>{data.org.org_name}</h2><dl><dt>Organization code</dt><dd>{data.org.org_code}</dd><dt>Status</dt><dd>{data.summary.status}</dd><dt>Employee usage</dt><dd>{data.summary.users_count} of {data.summary.user_limit}</dd><dt>Subscription</dt><dd>{data.org.subscription?.plan?.name || "No plan assigned"}</dd></dl></section><section className="panel prosePanel"><h2>Enrollment readiness</h2><p>{data.summary.face_profiles} face profiles are enrolled for {data.summary.users_count} employees.</p><progress aria-label="Face enrollment coverage" max="100" value={data.summary.face_coverage_percent} /><p>Face enrollment is managed through the existing mobile and API workflow.</p></section></div><section className="panel"><div className="sectionHead"><h2>Recent attendance</h2><span className="muted">Latest {data.recent_attendance.length} events</span></div><DataTable columns={["Employee", "Event", "Time", "Remark"]} rows={data.recent_attendance.map((row) => [row.employee_name || row.employee_id, row.attendance_type, row.display_timestamp || row.timestamp, row.remark || "—"])} /></section></div>;
 }
 
 function TrackingSettings({ data }) {
   const settings = data.tracking_settings || {};
-  return (
-    <section className="contentGrid">
-      <section className="panel detailPanel">
-        <h2>Tracking settings</h2>
-        <dl>
-          <dt>Auto checkout</dt>
-          <dd>{settings.auto_checkout_enabled ? "Enabled" : "Disabled"}</dd>
-          <dt>Timeout</dt>
-          <dd>{settings.tracking_timeout_hours ?? 4} hours</dd>
-          <dt>GPS interval</dt>
-          <dd>{settings.tracking_interval_minutes ?? 30} minutes</dd>
-        </dl>
-        <div className="notice">Only superadmin can edit these values.</div>
-      </section>
-      <section className="panel prosePanel">
-        <h2>Auto checkout rule</h2>
-        <p>
-          When an employee checks in, TrackPulse opens an active tracking session. If the employee does not check out before the configured timeout,
-          the backend creates an automatic checkout record with a remark.
-        </p>
-        <p>
-          If GPS or network tracking fails, the mobile app can send a failed tracking event with a remark. If the phone is fully offline, it should save
-          that event locally and sync it when connectivity returns.
-        </p>
-      </section>
-    </section>
-  );
-}
-
-function UserManagementTable({ data, onRefresh, onPageChange }) {
-  return (
-    <div className="panel">
-      <div className="sectionHead">
-        <h2>Registered users</h2>
-        <span>{data.users.length} employees</span>
-      </div>
-      <DataTable
-        columns={["Employee ID", "Name", "Email", "Face", "Status", "Action"]}
-        rows={data.users.map((user) => [
-          user.employee_id,
-          user.employee_name,
-          user.email,
-          user.face_enrolled ? "Enrolled" : "Pending",
-          user.is_active ? "Active" : "Inactive",
-          <button className={user.is_active ? "dangerButton" : "secondaryButton"} onClick={() => api.toggleUser(user.user_id).then(onRefresh)}>
-            {user.is_active ? "Deactivate" : "Activate"}
-          </button>
-        ])}
-      />
-      <PaginationControls pagination={data.users_pagination} onPageChange={onPageChange} />
-    </div>
-  );
+  return <section className="splitPanels"><section className="panel detailPanel"><h2>Tracking configuration</h2><dl><dt>Auto checkout</dt><dd>{settings.auto_checkout_enabled ? "Enabled" : "Disabled"}</dd><dt>Timeout</dt><dd>{settings.tracking_timeout_hours ?? "—"} hours</dd><dt>GPS interval</dt><dd>{settings.tracking_interval_minutes ?? "—"} minutes</dd></dl><div className="notice">These settings are managed by your Super Admin.</div></section><section className="panel prosePanel"><h2>How automatic checkout works</h2><p>An employee check-in opens an active tracking session. If the employee does not check out before the configured timeout, the backend records an automatic checkout with a remark.</p><p>GPS or network failures can be reported by the mobile app with a remark. Offline events are saved locally and synced when connectivity returns.</p></section></section>;
 }

@@ -1,0 +1,169 @@
+.fieldBrand { display: inline-flex; align-items: center; gap: 11px; flex-shrink: 0; }
+.brandLogo { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 48px; border-radius: 7px; background: #080808; overflow: hidden; padding: 3px; }
+.brandLogo img { width: 100%; height: 100%; object-fit: contain; }
+.brandWordmark { color: #11133d; font-size: 22px; font-weight: 750; letter-spacing: -.7px; }
+.brandWordmark > span { display: block; font-size: 7px; letter-spacing: 1.25px; font-weight: 650; margin-top: 1px; }
+.compactBrand .brandLogo { width: 32px; height: 42px; }
+.loginIntro > .fieldBrand { margin: 38px 0 24px; display: flex; }
+:root[data-theme="dark"] .loginIntro .brandWordmark { color: var(--text); }
+.sidebar .brand strong { font-size: 18px; }
+.priceSummary { background: var(--surface-strong); border: 1px solid var(--line); padding: 18px; border-radius: 8px; margin: 10px 0; display: grid; gap: 4px; }
+.priceSummary > span { font-size: 12px; color: var(--muted); }
+.priceSummary > strong { font-size: 27px; letter-spacing: -.6px; }
+.priceSummary > small { color: var(--muted); }
+.tableDescription { display: block; color: var(--muted); max-width: 220px; margin-top: 4px; }
+.planPicker { border: 1px solid var(--line); padding: 14px; border-radius: 8px; margin: 12px 0; }
+.planPicker .checkRow { font-weight: 400; }
+.planPicker .checkRow input { flex-shrink: 0; }
+.productPage { --ink: #11133d; --orange: #f5a31a; --paper: #f9f9f5; color: var(--ink); background: var(--paper); font-family: "Segoe UI", Arial, sans-serif; font-size: 15px; line-height: 1.6; }
+.productPage * { box-sizing: border-box; }
+.productPage a { color: inherit; text-decoration: none; }
+.productPage button { font-family: inherit; }
+.productHeader { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 17px max(5vw,calc((100vw - 1320px)/2)); border-bottom: 1px solid #11133d15; background: #f9f9f5ee; position: sticky; top: 0; z-index: 10; backdrop-filter: blur(14px); }
+.productBrandLink { display: flex; }
+.productNav { display: flex; gap: 28px; font-size: 13px; font-weight: 550; }
+.productNav a { border-bottom: 1px solid transparent; }
+.productNav a:hover { border-color: var(--ink); }
+.productHeaderActions { display: flex; gap: 14px; align-items: center; }
+.profileAccess { background: transparent; border: 0; color: var(--ink); display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; }
+.profileAccess:hover { background: #11133d09; }
+.productButton { display: inline-flex; justify-content: center; align-items: center; gap: 20px; border: 0; border-radius: 5px; padding: 15px 23px; font-size: 13px; font-weight: 650; min-height: 48px; cursor: pointer; }
+.productButton:hover { transform: translateY(-1px); }
+.darkButton { color: #fff; background: var(--ink); }
+.orangeButton { background: var(--orange); color: var(--ink); }
+.productHeader .productButton { min-height: 42px; padding: 10px 18px; }
+.productHero { max-width: 1440px; margin: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 45px; padding: 85px 60px 75px; align-items: center; scroll-margin-top: 110px; }
+.productEyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 750; letter-spacing: 1.8px; margin: 0 0 24px; }
+.productEyebrow > span { width: 7px; height: 7px; background: var(--orange); border-radius: 50%; }
+.heroCopy h1 { font-size: clamp(54px,5.6vw,83px); line-height: 1.05; font-weight: 600; letter-spacing: -4px; margin: 0 0 26px; }
+.heroCopy h1 em { font-style: normal; color: #bc7300; }
+.heroCopy > p { color: #626473; font-size: 17px; max-width: 430px; line-height: 1.8; margin: 0 0 30px; }
+.heroActions { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.productTextLink { display: inline-flex; gap: 10px; align-items: center; font-size: 12px; font-weight: 650; }
+.heroProof { display: flex; gap: 18px; flex-wrap: wrap; color: #72737e; margin-top: 35px; font-size: 10px; }
+.heroProof > span { display: flex; align-items: center; gap: 6px; }
+.heroVisual { height: 540px; position: relative; background: #edece4; border-radius: 12px; border: 1px solid #dedfd6; }
+.visualCaption { height: 44px; padding: 15px; display: flex; align-items: center; gap: 7px; font-size: 7px; letter-spacing: .9px; font-weight: 750; }
+.visualCaption > span:last-child { margin-left: auto; color: #777a7b; font-size: 6px; }
+.statusDot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #248968; flex-shrink: 0; }
+.mapIllustration { position: absolute; inset: 44px 14px 50px; overflow: hidden; border-radius: 8px; border: 1px solid #d9dbd2; }
+.mapIllustration > svg { width: 100%; height: 100%; object-fit: cover; }
+.mapLabel { position: absolute; top: 20px; left: 15px; display: flex; align-items: center; gap: 7px; background: #fff; border: 1px solid #e5e6dd; border-radius: 5px; padding: 8px 10px; font-size: 9px; box-shadow: 0 5px 18px #11133d08; }
+.verifiedCard { position: absolute; bottom: 32px; left: 20px; display: flex; align-items: center; gap: 11px; padding: 13px 15px; background: #fff; border-radius: 7px; box-shadow: 0 10px 30px #11133d14; }
+.verifiedCard > span { width: 37px; height: 37px; display: grid; place-items: center; border-radius: 50%; background: #eaf3eb; color: #248968; }
+.verifiedCard strong, .verifiedCard small { display: block; }
+.verifiedCard strong { font-size: 11px; font-weight: 650; }
+.verifiedCard small { font-size: 8px; color: #74777e; margin-top: 2px; }
+.verifiedCard > svg { color: #248968; margin-left: 10px; }
+.illustratedPhone { position: absolute; right: 25px; top: 80px; width: 204px; height: 388px; background: #fff; border: 7px solid #141632; outline: 1px solid #ffffff88; border-radius: 30px; padding: 24px 16px 13px; transform: rotate(5deg); box-shadow: 0 25px 45px #14163240; }
+.phoneNotch { position: absolute; top: 0; left: 60px; width: 70px; height: 13px; border-radius: 0 0 12px 12px; background: #141632; }
+.phoneBrand { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 750; }
+.phoneBrand img { width: 20px; height: 27px; object-fit: contain; background: #000; border-radius: 3px; }
+.illustratedPhone > p { font-size: 6px; letter-spacing: 1.4px; color: #898b95; margin-top: 18px; }
+.illustratedPhone h3 { font-size: 24px; line-height: 1.12; font-weight: 600; margin: 5px 0 16px; letter-spacing: -.7px; }
+.faceFrame { position: relative; height: 108px; display: grid; place-items: center; color: #11133d; background: #f5f5f0; border-radius: 12px; }
+.faceFrame > span { position: absolute; left: 15px; right: 15px; top: 47%; height: 1px; background: #f5a31a; box-shadow: 0 0 8px #f5a31a; }
+.faceFrame > i { position: absolute; inset: 11px; border: 1px solid #11133d20; border-radius: 8px; }
+.phoneVerified { display: flex; align-items: center; justify-content: center; gap: 5px; color: #248968; font-size: 8px; margin: 13px 0; }
+.phoneCheckin { display: flex; justify-content: space-between; background: var(--orange); padding: 8px 12px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+.phoneGps { display: flex; justify-content: center; gap: 5px; align-items: center; font-size: 6px; color: #767a7b; margin-top: 10px; }
+.phoneGps .statusDot { width: 4px; height: 4px; }
+.visualBottom { position: absolute; bottom: 18px; left: 25px; right: 25px; display: flex; gap: 14px; justify-content: center; align-items: center; color: #696c71; font-size: 9px; }
+.visualBottom > span { display: flex; align-items: center; gap: 6px; }
+.connectionLine { flex: 1; max-width: 60px; border-top: 1px dashed #a7aba4; }
+.platformStrip { background: #eeeee7; border-block: 1px solid #11133d0c; display: flex; gap: 30px; justify-content: space-between; align-items: center; padding: 25px max(5vw,calc((100vw - 1320px)/2)); }
+.platformStrip > span { font-size: 8px; letter-spacing: 1.5px; font-weight: 750; color: #737475; }
+.platformStrip > div { display: flex; align-items: center; gap: 30px; }
+.platformStrip div > span { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; }
+.platformStrip i { height: 22px; border-right: 1px solid #11133d18; }
+.productSection { max-width: 1440px; padding: 90px 60px; margin: auto; scroll-margin-top: 70px; }
+.productIntro { display: grid; grid-template-columns: 1fr 1fr; gap: 85px; align-items: center; padding-bottom: 45px; }
+.productPage h2 { font-size: clamp(32px,3.5vw,48px); line-height: 1.15; letter-spacing: -1.8px; font-weight: 600; margin: 0; }
+.productIntro h2 span { color: #8a8b92; }
+.productIntro > p { color: #696b77; line-height: 1.9; max-width: 480px; }
+.workflowSteps { display: grid; grid-template-columns: repeat(3,1fr); gap: 50px; padding: 0 60px 90px; max-width: 1440px; margin: auto; }
+.workflowSteps > article { padding-top: 25px; border-top: 1px solid #11133d20; }
+.stepNumber { color: #a76c12; font-size: 11px; font-weight: 650; }
+.workflowSteps h3 { font-size: 17px; margin: 16px 0 10px; letter-spacing: -.4px; font-weight: 650; }
+.workflowSteps p { font-size: 13px; color: #747580; line-height: 1.8; margin: 0; }
+.capabilitiesSection { padding-top: 70px; background: #f0f0e9; max-width: none; }
+.productSectionHead { display: flex; justify-content: space-between; gap: 40px; align-items: flex-end; max-width: 1320px; margin: 0 auto 45px; }
+.productSectionHead > p { color: #737580; font-size: 14px; max-width: 285px; }
+.capabilityGrid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; max-width: 1320px; margin: auto; }
+.capabilityCard { border: 1px solid #11133d0e; background: #fafaf6; border-radius: 6px; padding: 29px; display: flex; flex-direction: column; }
+.capabilityTop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.capabilityTop > span { color: #a5a5aa; font-size: 10px; }
+.capabilityCard h3 { font-size: 21px; font-weight: 600; letter-spacing: -.6px; line-height: 1.25; margin: 0 0 16px; max-width: 240px; }
+.capabilityCard p { font-size: 12px; line-height: 1.9; color: #747580; margin: 0 0 25px; }
+.capabilityTags { display: flex; gap: 7px; flex-wrap: wrap; margin-top: auto; }
+.capabilityTags span { font-size: 8px; color: #7a7b82; border: 1px solid #11133d14; padding: 3px 7px; border-radius: 3px; }
+.mobileSection { display: grid; grid-template-columns: 1fr 1fr; gap: 90px; padding-block: 105px; }
+.mobileStatement h2 em { color: #ad6a00; font-style: normal; }
+.mobileStatement > p { color: #747580; font-size: 14px; line-height: 1.9; margin: 23px 0; max-width: 410px; }
+.connectedViews { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+.connectedViews article { padding-top: 18px; border-top: 1px solid #11133d20; }
+.connectedViews h3 { margin: 18px 0; font-size: 15px; font-weight: 650; }
+.connectedViews ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 20px; }
+.connectedViews li { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #747580; }
+.connectedViews li svg { flex-shrink: 0; color: #b77308; margin-top: 2px; }
+.productClosing { text-align: center; background: #f4a51e; padding: 80px 20px; }
+.productClosing .productEyebrow { justify-content: center; font-size: 9px; margin-bottom: 18px; }
+.productClosing h2 { font-size: clamp(38px,4.5vw,65px); letter-spacing: -2.5px; }
+.productClosing .productButton { margin-top: 30px; }
+.productClosing > p:last-child { font-size: 11px; opacity: .7; margin-top: 20px; }
+.productFooter { display: flex; justify-content: space-between; align-items: center; gap: 20px; max-width: 1440px; margin: auto; padding: 30px 60px; }
+.productFooter > p, .productFooter > a { font-size: 10px; color: #747580; }
+@media (min-width: 1500px) { .capabilitiesSection { padding-inline: max(60px,calc((100vw - 1320px)/2)); } }
+@media (max-width: 1100px) {
+  .productHero { padding: 65px 35px; gap: 30px; }
+  .heroCopy h1 { font-size: 63px; letter-spacing: -3px; }
+  .heroVisual { height: 505px; }
+  .illustratedPhone { right: 5px; width: 190px; }
+  .verifiedCard { left: 8px; bottom: 24px; padding: 10px; }
+  .platformStrip { flex-direction: column; gap: 16px; }
+  .productSection { padding-inline: 35px; }
+  .workflowSteps { padding-inline: 35px; gap: 25px; }
+  .mobileSection { gap: 35px; }
+  .connectedViews { gap: 16px; }
+  .capabilityCard { padding: 22px; }
+}
+@media (max-width: 760px) {
+  .productHeader { padding: 13px 20px; gap: 10px; }
+  .productNav { display: none; }
+  .productHeader .brandWordmark { font-size: 20px; }
+  .productHeader .brandWordmark > span { font-size: 6px; letter-spacing: .8px; }
+  .productHeader .productButton { display: none; }
+  .productHero { grid-template-columns: minmax(0,1fr); padding: 48px 22px; gap: 45px; }
+  .heroCopy h1 { font-size: clamp(54px,10vw,76px); }
+  .heroCopy > p { font-size: 15px; max-width: 500px; }
+  .productEyebrow { font-size: 8px; }
+  .heroActions { gap: 20px; }
+  .heroProof { gap: 12px; font-size: 9px; }
+  .heroVisual { max-width: 550px; width: 100%; height: 490px; margin: auto; }
+  .illustratedPhone { right: 18px; top: 65px; }
+  .verifiedCard { bottom: 14px; }
+  .visualCaption { font-size: 6px; }
+  .visualCaption > span:last-child { font-size: 5px; }
+  .platformStrip { padding: 25px 18px; }
+  .platformStrip > div { gap: 12px; }
+  .platformStrip div > span { font-size: 9px; gap: 5px; }
+  .platformStrip div svg { width: 15px; }
+  .productSection { padding: 60px 22px; }
+  .productIntro { grid-template-columns: minmax(0,1fr); gap: 15px; padding-bottom: 32px; }
+  .productIntro > p { font-size: 13px; }
+  .workflowSteps { grid-template-columns: minmax(0,1fr); padding: 0 22px 55px; gap: 25px; }
+  .workflowSteps > article { padding-top: 17px; }
+  .workflowSteps h3 { margin-top: 8px; }
+  .productSectionHead { flex-direction: column; align-items: flex-start; gap: 15px; margin-bottom: 30px; }
+  .productSectionHead > p { max-width: 400px; margin: 0; font-size: 13px; }
+  .capabilityGrid { grid-template-columns: minmax(0,1fr); gap: 12px; }
+  .capabilityCard { padding: 25px; }
+  .capabilityTop { margin-bottom: 20px; }
+  .capabilityCard h3 { max-width: 300px; }
+  .mobileSection { grid-template-columns: minmax(0,1fr); gap: 40px; }
+  .connectedViews { gap: 20px; }
+  .connectedViews li { font-size: 11px; }
+  .productClosing { padding: 60px 22px; }
+  .productFooter { padding: 30px 22px; flex-wrap: wrap; }
+  .productFooter > p { order: 3; flex-basis: 100%; margin: 0; }
+}
