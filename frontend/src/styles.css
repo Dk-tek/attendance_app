@@ -446,6 +446,32 @@ nav {
   min-height: 430px;
 }
 
+.monitorFilters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; }
+.monitorFilters label { display: grid; gap: 8px; flex: 1 1 160px; min-width: 0; font-size: 13px; font-weight: 600; }
+.monitorFilters .monitorSearch { flex: 2 1 260px; }
+.monitorFilters input, .monitorFilters select { width: 100%; min-width: 0; }
+.monitorSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.monitorTimeline { max-height: 650px; overflow-y: auto; padding: 0 8px 8px 0; }
+.eventList { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 10px; }
+.timelineEvent { display: flex; width: 100%; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; text-align: left; background: var(--surface); color: var(--text); }
+.timelineEvent:hover, .timelineEvent.selected { background: var(--surface-strong); border-color: var(--brand); }
+.eventNumber { display: grid; place-items: center; flex: 0 0 32px; height: 32px; border-radius: 50%; background: var(--muted); color: #fff; font-weight: 800; }
+.eventNumber.check_in { background: #178f72; }
+.eventNumber.check_out { background: #d1495b; }
+.eventNumber.location_track { background: #2f6fed; }
+.eventCopy { display: grid; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.eventCopy time, .eventCopy > span { color: var(--muted); font-size: 13px; }
+.monitorSplit .mapPanel { min-width: 0; }
+.monitorSplit .attendanceMap { height: 560px; }
+.mapPanel > p { padding: 0 14px; color: var(--muted); font-size: 13px; }
+.numberedMapIcon span { display: grid; place-items: center; width: 32px; height: 32px; border: 2px solid #fff; border-radius: 50%; color: #fff; font: 700 13px/1 sans-serif; box-shadow: 0 2px 6px #0006; }
+.activeMapPoint span { outline: 4px solid #f6bd32; transform: scale(1.15); }
+@media (max-width: 900px) {
+  .monitorSplit { grid-template-columns: minmax(0, 1fr); }
+  .monitorTimeline { max-height: 420px; }
+  .monitorSplit .attendanceMap { height: 420px; }
+}
+
 .detailPanel dl {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr);

@@ -8,8 +8,10 @@ import { AttendanceExplorer } from "./AttendanceExplorer";
 import { EmployeesPage } from "./EmployeesPage";
 import { PolicyPage } from "./PolicyPage";
 import { SubscriptionPage } from "./SubscriptionPage";
+import { MonitoringPage } from "./MonitoringPage";
 
 export function OrgAdminPage({ activePage }) {
+  if (activePage === "monitoring") return <MonitoringPage />;
   if (activePage === "users") return <EmployeesPage />;
   if (["terms", "privacy"].includes(activePage)) return <PolicyPage key={activePage} kind={activePage} />;
   if (["subscription", "organization"].includes(activePage)) return <SubscriptionPage />;

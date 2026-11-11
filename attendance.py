@@ -1249,11 +1249,30 @@ async def api_org_admin_attendance(
     month: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    q: str = "",
+    include_timeline: bool = False,
 ):
     require_api_role(request, "org_admin")
     org_id = request.session["org_id"]
+    if start and not to_date(start) or end and not to_date(end):
+        raise HTTPException(status_code=400, detail="Use valid From and To dates.")
+    if start and end and start > end:
+        raise HTTPException(status_code=400, detail="From date must be on or before To date.")
     rows = get_filtered_attendance_rows(org_id, employee_id, start, end, month, date)
     map_points = get_filtered_map_points(org_id, employee_id, start, end, month, date)
+    if q.strip():
+        search = q.strip().casefold()
+        matching_ids = {
+            user.get("employee_id")
+            for user in users_collection.find({"org_id": org_id}, {"employee_id": 1, "employee_name": 1, "email": 1})
+            if any(search in str(user.get(field, "")).casefold() for field in ("employee_id", "employee_name", "email"))
+        }
+        def matches(item):
+            return item.get("employee_id") in matching_ids or any(
+                search in str(item.get(field, "")).casefold() for field in ("employee_id", "employee_name")
+            )
+        rows = [row for row in rows if matches(row)]
+        map_points = [point for point in map_points if matches(point)]
     groups = get_attendance_date_groups(rows, map_points)
     paged_groups = paginate_items(groups, page, page_size)
     paged_rows = paginate_items(rows, page, page_size)
@@ -1263,6 +1282,7 @@ async def api_org_admin_attendance(
         "rows": paged_rows["items"],
         "pagination": paged_rows["pagination"],
         "map_points": map_points,
+        **({"timeline": rows + [point for point in map_points if point.get("type") == "location_track"]} if include_timeline else {}),
     }
 
 

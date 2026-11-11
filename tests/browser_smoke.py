@@ -20,7 +20,7 @@ import mongomock
 import pymongo
 import uvicorn
 from fastapi.staticfiles import StaticFiles
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 
 def run():
@@ -45,6 +45,11 @@ def run():
         ns['admin_users_collection'].insert_one({'org_id': 'browser-org', 'name': 'Test Admin', 'email': 'admin@example.test', 'password_hash': ns['hash_password']('test-password'), 'is_active': True})
         for i in range(23):
             ns['users_collection'].insert_one({'org_id': 'browser-org', 'user_id': f'user-{i}', 'employee_id': f'EMP{i:03}', 'employee_name': f'Employee {i:02}', 'email': f'employee{i}@example.test', 'password_hash': ns['hash_password']('test-password'), 'is_active': True})
+        activity = {'org_id': 'browser-org', 'employee_id': 'EMP000', 'employee_name': 'Employee 00', 'session_id': 'monitor-session'}
+        for kind, hour, latitude in [('check_in', '03', 12.97), ('check_out', '12', 12.974)]:
+            ns['attendance_collection'].insert_one({**activity, 'attendance_type': kind, 'timestamp': f'2026-11-10T{hour}:00:00+00:00', 'latitude': latitude, 'longitude': 77.59})
+        ns['location_collection'].insert_one({**activity, 'event_id': 'browser-gps-ok', 'timestamp': '2026-11-10T06:00:00+00:00', 'latitude': 12.972, 'longitude': 77.592, 'tracking_status': 'ok'})
+        ns['location_collection'].insert_one({**activity, 'event_id': 'browser-gps-failed', 'timestamp': '2026-11-10T07:00:00+00:00', 'tracking_status': 'failed', 'remark': 'GPS unavailable'})
         with socket.socket() as probe:
             probe.bind(('127.0.0.1', 0))
             port = probe.getsockname()[1]
@@ -80,6 +85,38 @@ def run():
                 page.get_by_label('Email or employee ID').fill('admin@example.test')
                 page.get_by_label('Password', exact=True).fill('test-password')
                 page.get_by_role('button', name='Sign in', exact=True).click()
+                page.get_by_role('navigation').get_by_role('button', name='Monitoring', exact=True).click()
+                with page.expect_response(lambda response: '/api/org-admin/attendance?' in response.url and 'q=EMP000' in response.url):
+                    page.get_by_label('Search employees', exact=True).fill('EMP000')
+                page.get_by_label('Employee', exact=True).select_option('EMP000')
+                page.get_by_label('From date').fill('2026-11-10')
+                page.get_by_label('To date').fill('2026-11-10')
+                page.get_by_role('button', name='View timeline').click()
+                page.locator('.timelineEvent').nth(3).wait_for()
+                expect(page.locator('.timelineEvent')).to_have_count(4)
+                expect(page.locator('.numberedMapIcon')).to_have_count(3)
+                expect(page.locator('.eventNumber')).to_have_text(['1', '2', '\u2013', '3'])
+                page.locator('.timelineEvent').nth(1).click()
+                expect(page.locator('.activeMapPoint')).to_have_text('2')
+                page.locator('.leaflet-popup-close-button').click()
+                page.locator('.numberedMapIcon').filter(has_text='1').click()
+                expect(page.locator('.timelineEvent.selected .eventNumber')).to_have_text('1')
+                page.locator('.timelineEvent').nth(2).click()
+                expect(page.locator('.activeMapPoint')).to_have_count(0)
+                page.screenshot(path=str(output / 'monitoring-desktop.png'), full_page=True)
+                page.get_by_role('button', name='Toggle theme', exact=True).click()
+                page.screenshot(path=str(output / 'monitoring-dark.png'), full_page=True)
+                page.get_by_role('button', name='Toggle theme', exact=True).click()
+                page.set_viewport_size({'width': 390, 'height': 844})
+                assert page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'Monitoring overflows on mobile'
+                page.screenshot(path=str(output / 'monitoring-mobile.png'), full_page=True)
+                page.set_viewport_size({'width': 1440, 'height': 1000})
+                page.get_by_role('button', name='Clear filters').click()
+                page.get_by_label('Search employees', exact=True).fill('employee0@example.test')
+                page.get_by_role('button', name='View timeline').wait_for()
+                expect(page.locator('tbody tr')).to_have_count(1)
+                page.get_by_label('Search employees', exact=True).fill('Nobody matches this')
+                page.get_by_text('No records found', exact=True).wait_for()
                 page.get_by_role('navigation').get_by_role('button', name='Users', exact=True).click()
                 page.get_by_text('1–10 of 23 records').wait_for()
                 page.get_by_role('button', name='Page 2', exact=True).click()
@@ -197,7 +234,7 @@ def run():
                 assert 'noindex' in page.locator('meta[name="robots"]').get_attribute('content')
                 assert not errors, errors
                 browser.close()
-                print('Browser checks passed: Field Pixel product page and profile sign-in, desktop/mobile layouts, employee CRUD/status, policy publishing, base/per-user pricing totals, plan assignment, existing organization price editing and icon navigation collapse.')
+                print('Browser checks passed: monitoring search/date filters, numbered timeline/map selection and mobile layout; Field Pixel product page and profile sign-in, desktop/mobile layouts, employee CRUD/status, policy publishing, base/per-user pricing totals, plan assignment, existing organization price editing and icon navigation collapse.')
         finally:
             server.should_exit = True
             thread.join(timeout=10)

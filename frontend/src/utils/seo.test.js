@@ -11,7 +11,7 @@ test("only the public product page is indexable on the correct canonical domain"
 });
 
 test("every workspace page has distinct metadata and stays private", () => {
-  const keys = ["overview", "organizations", "plans", "insights", "users", "attendance", "organization", "subscription", "settings", "records", "map", "terms", "privacy"];
+  const keys = ["overview", "organizations", "plans", "insights", "users", "attendance", "monitoring", "organization", "subscription", "settings", "records", "map", "terms", "privacy"];
   const metadata = keys.map((page) => pageSeo("#workspace", "superadmin", page));
   assert.equal(new Set(metadata.map((page) => page.title)).size, keys.length);
   assert.equal(new Set(metadata.map((page) => page.description)).size, keys.length);

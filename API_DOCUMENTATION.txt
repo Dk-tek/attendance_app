@@ -224,6 +224,15 @@ Query parameters:
 
   employee_id  Optional employee filter
   date         Optional exact date in YYYY-MM-DD
+  start        Optional inclusive From date in YYYY-MM-DD (IST)
+  end          Optional inclusive To date in YYYY-MM-DD (IST)
+  q            Optional case-insensitive name, employee ID or email search;
+               applied within the signed-in organization before pagination
+  include_timeline Optional boolean, default false. Adds a complete timeline
+               array of attendance rows and GPS events, including failures.
+               Request for one employee and date; not paginated. Entries use
+               attendance_type for attendance or type for GPS. Sort ascending
+               by timestamp in the UI. Missing coordinates must not be mapped.
   page         Optional, default 1
   page_size    Optional, default 20
 
@@ -233,7 +242,10 @@ Recommended mobile/admin UI pattern:
   Each row shows check-in count, checkout count, GPS count, failed GPS count,
   first time, and last time.
   When the admin taps a row, open detail/map view for that employee and date.
-  Use only date filter for this screen, not from-date/to-date.
+  The daily Attendance screen uses an exact date. The separate Monitoring
+  screen supports employee search, employee dropdown and From/To dates, then
+  opens an employee-day timeline beside numbered map points. Invalid or
+  reversed From/To dates return HTTP 400.
 
 Example:
 

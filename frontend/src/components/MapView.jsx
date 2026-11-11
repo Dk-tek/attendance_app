@@ -1,13 +1,21 @@
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import L from "leaflet";
 import { validMapPoint } from "../utils/mapPoints.js";
 
-export function MapView({ points }) {
+export function MapView({ points, numbered = false, activePointId = null, onPointSelect }) {
+  const mapRef = useRef(null);
+  const markersRef = useRef(new Map());
+  const selectRef = useRef(onPointSelect);
+  selectRef.current = onPointSelect;
   const rawId = useId();
   const mapId = `attendanceMap-${rawId.replace(/:/g, "")}`;
 
   useEffect(() => {
     const map = L.map(mapId);
+    mapRef.current = map;
+    markersRef.current = new Map();
+    const observer = new ResizeObserver(() => map.invalidateSize());
+    observer.observe(document.getElementById(mapId));
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "&copy; OpenStreetMap"
@@ -39,7 +47,12 @@ export function MapView({ points }) {
       }
       const markers = valid.map((point) => {
         const color = colors[point.type] || colors.attendance;
-        const marker = L.circleMarker([Number(point.latitude), Number(point.longitude)], {
+        const marker = numbered ? L.marker([point.latitude, point.longitude], {
+          icon: L.divIcon({ className: "numberedMapIcon", html: `<span style="background:${color}">${point.pointNumber}</span>`, iconSize: [32, 32], iconAnchor: [16, 16] }),
+          title: `Point ${point.pointNumber}: ${point.type}`,
+          alt: `Point ${point.pointNumber}`,
+          zIndexOffset: point.pointNumber || 0
+        }).addTo(map) : L.circleMarker([Number(point.latitude), Number(point.longitude)], {
           radius: 7,
           color,
           fillColor: color,
@@ -53,13 +66,27 @@ export function MapView({ points }) {
           popup.appendChild(line);
         }
         marker.bindPopup(popup);
+        if (point.id) markersRef.current.set(point.id, marker);
+        marker.on("click", () => selectRef.current?.(point.id));
         return marker;
       });
       map.fitBounds(L.featureGroup(markers).getBounds().pad(0.16), { maxZoom: 16 });
     }
 
-    return () => map.remove();
-  }, [mapId, points]);
+    return () => { observer.disconnect(); map.remove(); mapRef.current = null; markersRef.current.clear(); };
+  }, [mapId, points, numbered]);
 
-  return <section className="mapPanel"><div className="attendanceMap" id={mapId} /><p>Dashed lines connect recorded points within one attendance session; they are not a measured travel path.</p></section>
+  useEffect(() => {
+    for (const [id, marker] of markersRef.current) {
+      marker.getElement()?.classList.toggle("activeMapPoint", id === activePointId);
+      if (numbered) marker.setZIndexOffset(id === activePointId ? 10000 : 0);
+    }
+    const marker = markersRef.current.get(activePointId);
+    if (marker) {
+      mapRef.current.setView(marker.getLatLng(), Math.max(mapRef.current.getZoom(), 16));
+      marker.openPopup();
+    } else mapRef.current?.closePopup();
+  }, [activePointId, points, numbered]);
+
+  return <section className="mapPanel"><div className="attendanceMap" id={mapId} aria-label="Recorded employee locations" />{!(points || []).some(validMapPoint) ? <p>No recorded GPS locations available for this selection.</p> : null}<p>{numbered ? "Numbers match the timeline. Green: check-in. Blue: GPS. Red: check-out. " : ""}Dashed lines connect recorded points within one attendance session; they are not a measured travel path.</p></section>
 }

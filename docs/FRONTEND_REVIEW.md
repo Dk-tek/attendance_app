@@ -68,6 +68,40 @@ all_users/all_orgs for compatibility; new listings should not depend on them.
 Browser verification and live database verification must be reported separately
 from automated tests. Never read or print .env secrets during this work.
 
+## Employee monitoring
+
+The daily Attendance page remains available. Org Admin navigation now includes
+a separate Monitoring page. Review of App, Layout, attendance/user pages,
+shared filters, API loading, map validation and Leaflet rendering found that
+the existing API supported date ranges but the UI exposed only an exact date.
+The map displayed unnumbered points above paginated attendance rows, while
+GPS events and failed GPS reports were not in one chronological event list.
+
+Monitoring adds debounced name/employee ID/email search, a name-sorted employee
+dropdown, inclusive From/To dates, and paginated employee-day summaries. Search
+runs in the authorized organization before pagination. The dropdown loads the
+paginated employee API instead of depending on legacy dashboard arrays.
+
+Each employee-day detail uses equal-width timeline and map columns on desktop,
+stacking on smaller screens. The opt-in `include_timeline` response includes
+all attendance and GPS events for the selection, independently of table
+pagination. Mapped events receive ascending numbers shared by timeline and
+pins. Missing and failed GPS events remain in the timeline without pins.
+Selecting a timeline event focuses its pin; selecting a pin selects and scrolls
+to the event. Session lines remain separate and indicate recorded connections,
+not measured routes. Dates retain the backend's IST interpretation.
+
+Deploy the updated backend together with the rebuilt `frontend/dist` assets;
+restart the backend to register the added query parameters and timeline field.
+
+Verification: production build, 7 frontend tests and 19 relevant backend tests
+passed. The isolated Edge smoke suite passed employee search/date filters,
+timeline/pin numbering and selection in both directions, failed GPS handling,
+light/dark desktop screenshots and mobile overflow checks, along with existing
+employee, policy and subscription flows. Monitoring screenshots are available
+in ignored `.browser-artifacts/monitoring-{desktop,dark,mobile}.png` files.
+No production database or deployed application was tested or modified.
+
 ## Completed verification
 
 - Shared layout and modal/listing controls implemented and built.

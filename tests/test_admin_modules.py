@@ -33,6 +33,31 @@ def test_employee_listing_search_pagination_and_safe_update(server):
     assert ns['verify_password']('password', user['password_hash'])
 
 
+def test_monitoring_search_range_complete_timeline_and_tenant_isolation(server):
+    client, ns = server
+    admin_login(client, ns)
+    for org, employee in [('org', 'employee'), ('other-org', 'private')]:
+        for hour in range(1, 5):
+            ns['attendance_collection'].insert_one({'org_id': org, 'employee_id': employee, 'employee_name': 'Employee', 'attendance_type': 'check_in', 'timestamp': f'2026-11-10T0{hour}:00:00+00:00'})
+        ns['location_collection'].insert_one({'org_id': org, 'employee_id': employee, 'timestamp': '2026-11-10T05:00:00+00:00', 'tracking_status': 'failed', 'remark': 'No GPS fix'})
+    for search in ['EMPLOYEE', 'employee@example.com']:
+        response = client.get('/api/org-admin/attendance', params={'q': search, 'start': '2026-11-10', 'end': '2026-11-10', 'page_size': 1, 'include_timeline': True})
+        assert response.status_code == 200
+        result = response.json()
+        assert len(result['rows']) == 1
+        assert len(result['timeline']) == 5
+        assert {event['employee_id'] for event in result['timeline']} == {'employee'}
+        assert result['timeline'][-1]['tracking_status'] == 'failed'
+        assert result['groups_pagination']['total'] == 1
+    assert client.get('/api/org-admin/attendance?q=private').json()['groups'] == []
+    assert client.get('/api/org-admin/attendance?start=2026-11-11').json()['groups'] == []
+    assert client.get('/api/org-admin/attendance?start=2026-11-12&end=2026-11-10').status_code == 400
+    assert client.get('/api/org-admin/attendance?start=bad').status_code == 400
+    assert 'timeline' not in client.get('/api/org-admin/attendance').json()
+    client.post('/api/auth/logout')
+    assert client.get('/api/org-admin/attendance?include_timeline=true').status_code == 401
+
+
 @pytest.mark.parametrize('kind', ['terms', 'privacy'])
 def test_superadmin_policy_publish_conflict_and_readonly_roles(server, kind):
     client, ns = server

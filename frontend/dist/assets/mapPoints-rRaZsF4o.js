@@ -1,0 +1,1 @@
+function t(e){return e.tracking_status!=="failed"&&typeof e.latitude=="number"&&Number.isFinite(e.latitude)&&Math.abs(e.latitude)<=90&&typeof e.longitude=="number"&&Number.isFinite(e.longitude)&&Math.abs(e.longitude)<=180}export{t as v};

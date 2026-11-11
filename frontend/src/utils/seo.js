@@ -13,6 +13,7 @@ const pages = {
   insights: ["Operational Insights", "Compare organization attendance, employee capacity and face enrollment coverage in Field Pixel."],
   users: ["Employees", "Manage employee accounts, access status and face enrollment for your Field Pixel organization."],
   attendance: ["Attendance & Location History", "Filter employee attendance by date, review check-in and checkout events, and explore recorded GPS locations on a map."],
+  monitoring: ["Employee Monitoring", "Search employee activity by name, ID or email and inspect numbered GPS checkpoints in a timeline and map."],
   organization: ["Organization Details", "Review your Field Pixel organization, employee allocation, account status and assigned subscription."],
   subscription: ["Subscription & Pricing", "Review your Field Pixel plan, base price, per-user charges, registered employee count and billing-cycle total."],
   settings: ["Tracking Settings", "Review Field Pixel GPS tracking intervals, automatic checkout rules and organization attendance settings."],
